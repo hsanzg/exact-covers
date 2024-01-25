@@ -39,7 +39,7 @@ fn main() {
     let mut solver = ExactCovers::new(&items, &[]);
     for i in 1..=N {
         // Optimization: half of the Langford pairs for a given value of $n$
-        // are reflections of the others. Reduce the search space by placing
+        // are the reverses of the others. Reduce the search space by placing
         // the first 1 in position $1\leq s_j<n$.
         let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
         for j in first_slot_range {
@@ -66,7 +66,7 @@ fn main() {
                 unreachable!("ordered option should match (number, slot, slot) pattern");
             }
         }
-        // Print the found Langford sequence, and its reflection.
+        // Print the found Langford sequence, and its reverse.
         println!("{:?}", placement);
         placement.reverse();
         println!("{:?}", placement);

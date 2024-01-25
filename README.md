@@ -29,8 +29,8 @@ and their data structures in the Rust programming language:
   under the assumption that every option contains at least one primary item.
 - [`ColoredExactCovers`] will solve the exact cover problem with color constraints.
 
-Also, the [`examples`](examples) directory contains an instructive set of programs
-that apply these algorithms to a variety of problems:
+Also, the [`examples`] directory contains an instructive set of programs that
+apply these algorithms to a variety of problems:
 - [`langford_pairs.rs`] finds all [Langford pairings] of $2n$ numbers.
 - [`polycube_packing.rs`] computes the number of ways to arrange 25 [Y pentacubes]
   in a $5\times 5\times 5$ cuboid. R. Honsberger's book [_Mathematical Gems II_][mgems]
@@ -45,8 +45,9 @@ that apply these algorithms to a variety of problems:
 [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 [`ExactCovers`]: https://docs.rs/exact-covers/latest/exact-covers/xc/struct.ExactCovers.html
 [`ColoredExactCovers`]: https://docs.rs/exact-covers/latest/exact-covers/xcc/struct.ColoredExactCovers.html
-[`langford_pairs.rs`]: examples/langford_pairs.rs
+[`examples`]: https://github.com/hsanzg/exact-covers/tree/main/examples
+[`langford_pairs.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/langford_pairs.rs
 [Langford pairings]: https://en.wikipedia.org/wiki/Langford_pairing
-[`polycube_packing.rs`]: examples/polycube_packing.rs
+[`polycube_packing.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/polycube_packing.rs
 [Y pentacubes]: https://en.wikipedia.org/wiki/Polycube
 [mgems]: https://bookstore.ams.org/dol-2
