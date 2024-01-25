@@ -26,7 +26,7 @@ _secondary_ items, which _can_ be in at most one option of $\mathcal{O}^\star$.
 This crate contains various implementations of Knuth's exact cover solvers
 and their data structures in the Rust programming language:
 - [`ExactCovers`] finds all exact coverings of $I$ with options in $\mathcal{O}$
-  under the assumption that every option contains at least one primary item.
+  under the assumption that there is at least one primary item.
 - [`ColoredExactCovers`] will solve the exact cover problem with color constraints.
 
 Also, the [`examples`] directory contains an instructive set of programs that

@@ -116,6 +116,13 @@ impl Node {
 ///
 /// See the [crate-level documentation](`crate`) for details.
 ///
+/// # Note
+///
+/// The solver does not visit any solution containing a purely secondary option
+/// (that is, an option that uses no primary items). However, the set of items
+/// covered by the options in any visited solution intersects every purely
+/// secondary option.
+///
 /// # Example
 ///
 /// Suppose we want to cover the primary items $a,b,c,d,e,f,g$ using some of
@@ -165,6 +172,13 @@ pub struct ExactCovers<'i, I> {
     nodes: Vec<Node>,
     /// A stack of node pointers used for backtracking.
     pointers: Vec<NodeIndex>,
+    /// Whether the problem has options with no primary items.
+    ///
+    /// Algorithm X needs to perform a nonnegligible amount of computation
+    /// to discard solutions that contain purely secondary options. We keep
+    /// track of the presence of these options in `self.items` to see if it
+    /// is valid to skip these additional steps.
+    has_purely_secondary_options: bool,
 }
 
 impl<'i, I: Eq> ExactCovers<'i, I> {
@@ -227,6 +241,7 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
                 below: None,
             }],
             pointers: Vec::new(),
+            has_purely_secondary_options: false,
         }
     }
 
@@ -259,11 +274,17 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
     ///
     /// # Panics
     ///
-    /// This function panics if the option contains no primary items.
+    /// This function panics if the list of items is empty.
     pub fn add_option<'s, T: AsRef<[&'s I]>>(&'s mut self, items: T) {
         let items = items.as_ref();
         assert!(!items.is_empty(), "option must have at least one item");
-        self.nodes.reserve(items.len() + 1); // $k$ nodes and a spacer.
+        // We will create one node per item in `items` and a trailing spacer.
+        self.nodes.reserve(items.len() + 1);
+        // Whether the option contains a primary item, and therefore it is not
+        // a purely secondary. Warning: this variable is updated only when
+        // `self.has_purely_secondary_options` is false, because otherwise
+        // we know already that Algorithm X needs to perform the additional
+        // computation possibly avoided by this check.
         let mut has_primary = false;
         let first_node_ix = NodeIndex::new(self.nodes.len());
         let mut node_ix = first_node_ix;
@@ -276,15 +297,20 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
             let item_ix = self.find_item(label).unwrap_or_else(|| {
                 panic!("item at index {ix} of option must be in the problem's item list")
             });
-            if !has_primary && self.is_active(item_ix) {
-                has_primary = true;
+            if !self.has_purely_secondary_options {
+                if !has_primary && self.is_active(item_ix) {
+                    // An item is primary if it appears in the active list.
+                    has_primary = true;
+                }
             }
             // Append the new node to the vertical list of `item`.
             self.append_node(item_ix, node_ix);
             node_ix = node_ix.increment();
         }
-        // Algorithm X never chooses purely secondary options.
-        assert!(has_primary, "option must have at least one primary item");
+        if !self.has_purely_secondary_options && !has_primary {
+            // We just encountered the first purely secondary option.
+            self.has_purely_secondary_options = true;
+        }
         // Link the previous spacer to the last node in the option.
         // The first spacer cannot be referenced directly; see `NodeIndex`.
         let prev_spacer = &mut self.nodes[first_node_ix.get() - 1];
@@ -530,10 +556,12 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
                     // X2: All items have been covered. Visit the solution given
                     //     by the nodes in `self.pointers` and leave the current
                     //     recursion level.
-                    visit(ExactCover {
-                        solver: self,
-                        level: 0,
-                    });
+                    if self.is_valid_solution() {
+                        visit(ExactCover {
+                            solver: self,
+                            level: 0,
+                        });
+                    }
                     break;
                 }
             }
@@ -562,6 +590,38 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
             }
             // X8: We have explored the entire search tree; terminate.
             return;
+        }
+    }
+
+    /// Returns whether [`Self::solve`] should visit the current solution.
+    ///
+    /// A solution is valid only if the (secondary) items in the purely
+    /// secondary options are already covered by options containing at least
+    /// one primary item. This happens if the vertical lists of all active
+    /// secondary items are empty, which in turn occurs as the result of
+    /// hide operations during the covering of items $\neq i$ in step X5
+    /// of Algorithm X.
+    fn is_valid_solution(&self) -> bool {
+        if !self.has_purely_secondary_options {
+            return true;
+        }
+        // Of course, an option can be purely secondary only if the problem
+        // has secondary items. These occupy the last $N_2$ positions of
+        // the `self.items` arena. Access the one at the end and traverse
+        // the horizontal list of active secondary items.
+        let last_secondary_ix = ItemIndex::new(self.items.len() - 1);
+        let mut cur_ix = last_secondary_ix;
+        loop {
+            let item = self.item(cur_ix);
+            if item.len > 0 {
+                return false; // Skip the solution.
+            }
+            cur_ix = item.right;
+            if last_secondary_ix == cur_ix {
+                // We have traversed the entire list of active
+                // secondary items; visit the solution.
+                return true;
+            }
         }
     }
 
@@ -810,5 +870,34 @@ mod tests {
     fn out_of_bounds_is_active() {
         let solver = ExactCovers::new(&[1, 2], &[]);
         solver.is_active(ItemIndex::new(3));
+    }
+
+    #[test]
+    fn skips_solutions_with_purely_secondary_options() {
+        // Example problem taken from Exercise 7.2.2.1.19 of TAOCP.
+        let primary = ['a', 'b'];
+        let secondary = ['c', 'd', 'e', 'f', 'g'];
+        let mut solver = ExactCovers::new(&primary, &secondary);
+        solver.add_option([&'c', &'e']); // purely secondary
+        solver.add_option([&'a', &'d', &'g']);
+        solver.add_option([&'b', &'c', &'f']);
+        solver.add_option([&'a', &'d', &'f']);
+        solver.add_option([&'b', &'g']);
+        solver.add_option([&'d', &'e', &'g']); // purely secondary
+
+        let mut count = 0;
+        let mut option = Vec::new();
+        solver.solve(|mut solution| {
+            assert!(solution.next(&mut option));
+            // assert_eq!(option, &[&'a', &'d', &'g']);
+            println!("{option:?}");
+            assert!(solution.next(&mut option));
+            // assert_eq!(option, &[&'b', &'c', &'f']);
+            println!("{option:?}");
+            assert!(!solution.next(&mut option));
+            count += 1;
+            println!("---");
+        });
+        assert_eq!(count, 1);
     }
 }
