@@ -38,7 +38,11 @@ fn main() {
 
     let mut solver = ExactCovers::new(&items, &[]);
     for i in 1..=N {
-        for j in 1..2 * N - i {
+        // Optimization: half of the Langford pairs for a given value of $n$
+        // are reflections of the others. Reduce the search space by placing
+        // the first 1 in position $1\leq s_j<n$.
+        let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
+        for j in first_slot_range {
             let k = i + j + 1;
             let option = [&Item::Number(i), &Item::Slot(j), &Item::Slot(k)];
             solver.add_option(option);
@@ -62,7 +66,9 @@ fn main() {
                 unreachable!("ordered option should match (number, slot, slot) pattern");
             }
         }
-        // Print the found Langford sequence.
+        // Print the found Langford sequence, and its reflection.
+        println!("{:?}", placement);
+        placement.reverse();
         println!("{:?}", placement);
     })
 }

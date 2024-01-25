@@ -255,7 +255,7 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
     /// Appends an option to the exact cover problem.
     ///
     /// Once all options have been specified, use [`Self::solve`] to visit
-    /// all exact coverings of $I$ with a subset of options in $O$.
+    /// all exact coverings of $I$ with a subset of options in $\mathcal{O}$.
     ///
     /// # Panics
     ///
