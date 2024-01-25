@@ -1,7 +1,15 @@
 [package]
 name = "exact-covers"
-description = "A collection of exact cover solvers"
 version = "0.1.0"
+description = "A collection of exact cover solvers"
+authors = ["Hugo Sanz González <hugo@hgsg.me>"]
+license = "MIT"
+homepage = "https://github.com/hsanzg/exact-covers"
+documentation = "https://docs.rs/exact-covers"
+repository = "https://github.com/hsanzg/exact-covers"
+keywords = ["exact-cover", "dancing-links", "combinatorial-search", "polyomino-packing", "polycube-packing"]
+categories = ["algorithms", "data-structures", "mathematics"]
+readme = "README.md"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,6 +17,6 @@ edition = "2021"
 # Taken from https://docs.rs/rustdoc-katex-demo/latest/rustdoc_katex_demo/
 # To build locally, run RUSTDOCFLAGS="--html-in-header misc/katex-header.html" cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --no-deps --document-private-items
 [package.metadata.docs.rs]
-rustdoc-args = [ "--html-in-header", "misc/katex-header.html" ]
+rustdoc-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples", "--html-in-header", "misc/katex-header.html"]
 
 [dependencies]
