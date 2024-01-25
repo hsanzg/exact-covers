@@ -1,5 +1,5 @@
-use exact_covers::ExactCover;
+use exact_covers::xc::ExactCovers;
 
 fn main() {
-    let solver = ExactCover::new(&[1], &[2]);
+    let solver = ExactCovers::new(&[1], &[2]);
 }
