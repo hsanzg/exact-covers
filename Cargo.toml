@@ -1,6 +1,6 @@
 [package]
 name = "exact-covers"
-version = "0.1.0"
+version = "0.1.1"
 description = "A collection of exact cover solvers"
 authors = ["Hugo Sanz González <hugo@hgsg.me>"]
 license = "MIT"
@@ -17,6 +17,5 @@ edition = "2021"
 # Taken from https://docs.rs/rustdoc-katex-demo/latest/rustdoc_katex_demo/
 # To build locally, run RUSTDOCFLAGS="--html-in-header misc/katex-header.html" cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --no-deps --document-private-items
 [package.metadata.docs.rs]
-rustdoc-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples", "--html-in-header", "misc/katex-header.html"]
-
-[dependencies]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+rustdoc-args = ["--html-in-header", "misc/katex-header.html"]

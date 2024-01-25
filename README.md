@@ -44,7 +44,7 @@ that apply these algorithms to a variety of problems:
 [dl]: https://arxiv.org/pdf/cs/0011047.pdf
 [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 [`ExactCovers`]: https://docs.rs/exact-covers/latest/exact-covers/xc/struct.ExactCovers.html
-[`ColoredExactCover`]: https://docs.rs/exact-covers/latest/exact-covers/xcc/struct.ColoredExactCovers.html
+[`ColoredExactCovers`]: https://docs.rs/exact-covers/latest/exact-covers/xcc/struct.ColoredExactCovers.html
 [`langford_pairs.rs`]: examples/langford_pairs.rs
 [Langford pairings]: https://en.wikipedia.org/wiki/Langford_pairing
 [`polycube_packing.rs`]: examples/polycube_packing.rs
