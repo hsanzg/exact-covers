@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
-/// The position of an item node in a sequential table, whose first node is
-/// a special header referenced by [`ItemIndex::HEADER`]. See the `items`
-/// arena in the [`ExactCovers`] struct for an example of this construction.
+/// The position of an item node in a sequential table.
+///
+/// See the `items` arena in the [`ExactCovers`] struct for an example of
+/// this construction.
 ///
 /// [`ExactCovers`]: `crate::xc::ExactCovers`
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -11,9 +12,6 @@ use std::num::NonZeroUsize;
 pub(crate) struct ItemIndex(usize);
 
 impl ItemIndex {
-    /// The index of the special header node.
-    pub const HEADER: Self = Self(0);
-
     /// Creates a new index.
     pub const fn new(ix: usize) -> Self {
         Self(ix)
@@ -24,16 +22,13 @@ impl ItemIndex {
         self.0
     }
 
-    /// Returns the position of the previous item in the table, if any.
+    /// Returns the position of the previous item in the table.
     ///
-    /// The result is meaningful only if `self` is not [`ItemIndex::HEADER`].
+    /// The result is meaningful only if `self` is positive.
     pub fn decrement(self) -> Self {
-        debug_assert_ne!(self, Self::HEADER, "cannot decrement header index");
         Self(self.0 - 1)
     }
 
-    /// Returns the location in the table where
-    ///
     /// Returns the position of the next record in the table, if any.
     pub fn increment(self) -> Self {
         Self(self.0 + 1)
@@ -81,6 +76,7 @@ impl NodeIndex {
         NonZeroUsize::new(self.0.get() - 1).map(Self)
     }
 
+    /// Returns the position of the next node in the table, if any.
     pub fn increment(self) -> Self {
         // Workaround for `Option::expect` not being `const fn` in stable Rust.
         Self(if let Some(ix) = self.0.checked_add(1) {
@@ -97,7 +93,7 @@ mod tests {
 
     #[test]
     fn index_get() {
-        assert_eq!(ItemIndex::HEADER.get(), 0);
+        assert_eq!(ItemIndex::new(0).get(), 0);
         assert_eq!(ItemIndex::new(123).get(), 123);
         assert_eq!(ItemIndex::new(456789).get(), 456789);
 
@@ -124,7 +120,7 @@ mod tests {
 
     #[test]
     fn index_increment() {
-        assert_eq!(ItemIndex::HEADER.increment(), ItemIndex::new(1));
+        assert_eq!(ItemIndex::new(0).increment(), ItemIndex::new(1));
         assert_eq!(ItemIndex::new(1).increment(), ItemIndex::new(2));
         assert_eq!(ItemIndex::new(133).increment(), ItemIndex::new(134));
 

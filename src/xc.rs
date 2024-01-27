@@ -13,13 +13,20 @@ struct Item<'l, T> {
     /// # Invariant
     ///
     /// This variable is initialized provided this item does not represent
-    /// the special header node in the horizontal list of an [`ExactCovers`].
+    /// the special header node in a horizontal list of [`ExactCovers`].
     label: MaybeUninit<&'l T>,
-    /// The previous item within the horizontal list, in cyclic order.
+    /// Possibly the previous item in a (horizontal) list of active items,
+    /// in cyclic order. The contents of this variable are preserved when
+    /// the item is removed from the linked list. This property makes it
+    /// possible to apply the dancing links technique on lists of active
+    /// items.
     ///
     /// This field corresponds to the `LLINK` pointer in Knuth's data structure.
     left: ItemIndex,
-    /// The next item within the horizontal list, in cyclic order.
+    /// Possibly the next item in a (horizontal) list of active items,
+    /// in cyclic order. The contents of this variable are preserved
+    /// when the item is removed from the linked list. (See `self.left`
+    /// for details.)
     ///
     /// This field corresponds to the `RLINK` pointer in Knuth's data structure.
     right: ItemIndex,
@@ -47,17 +54,12 @@ struct Item<'l, T> {
 }
 
 impl<'l, T> Item<'l, T> {
-    /// Creates the header for an horizontal list with the specified number
-    /// of primary items.
-    fn header(primary_count: usize) -> Self {
-        assert!(
-            primary_count > 0,
-            "horizontal list must contain at least one primary item"
-        );
+    /// Creates the head for an active list of items.
+    fn header(left: ItemIndex, right: ItemIndex) -> Self {
         Self {
             label: MaybeUninit::uninit(),
-            left: ItemIndex::new(primary_count),
-            right: ItemIndex::new(1),
+            left,
+            right,
             first_option: None,
             last_option: None,
             len: 0,
@@ -78,24 +80,32 @@ impl<'l, T> Item<'l, T> {
     }
 }
 
-/// A node in the toroidal data structure of an [`ExactCovers`].
+/// The position of the special node in the `self.items` table of
+/// [`ExactCovers`] that serves as the head of the list of active
+/// primary items.
+///
+/// The list of active secondary items has its own header node,
+/// namely the last element in `self.items`. Its position thus
+/// depends on the number of items in the exact cover problem,
+/// so this constant has no secondary counterpart.
+const PRIMARY_HEADER: ItemIndex = ItemIndex::new(0);
+
+/// An internal node in the toroidal data structure of [`ExactCovers`];
+/// each of these nodes represents one [item](`Item`) of an option.
+#[derive(Copy, Clone)]
 struct Node {
-    /// The item associated with this node, or [`ItemIndex::HEADER`] if
-    /// this node is a [spacer](`Self::is_spacer`).
+    /// The item associated with this node.
+    ///
+    /// This field roughly corresponds to the `TOP` field in Knuth's data
+    /// structure.
     item: ItemIndex,
     /// The previous node in the vertical list for `item`, if any.
-    /// In the case that this node is a [spacer](`Self::is_spacer`), points
-    /// to the first node in the preceding option. This is an aid to traversing
-    /// such option in cyclic order, from left to right.
     ///
     /// This field corresponds to the `ULINK` pointer in Knuth's data structure,
     /// except that it equals [`None`] instead of `item` when a node belongs
     /// to the first option that contains `item`.
     above: Option<NodeIndex>,
     /// The next node in the vertical list for `item`, if any.
-    /// In the case that this node is a [spacer](`Self::is_spacer`), points
-    /// to the last node in the succeeding option. This is an aid to traversing
-    /// such option in cyclic order, from right to left.
     ///
     /// This field corresponds to the `DLINK` pointer in Knuth's data structure,
     /// except that it equals [`None`] instead of `item` when a node belongs
@@ -103,11 +113,45 @@ struct Node {
     below: Option<NodeIndex>,
 }
 
-impl Node {
-    /// Returns whether this node is a spacer, in which case the [`Self::above`]
-    /// and [`Self::below`] links have a special meaning.
-    pub fn is_spacer(&self) -> bool {
-        self.item == ItemIndex::HEADER
+/// A spacer node between options.
+#[derive(Copy, Clone)]
+struct Spacer {
+    /// The first node in the preceding option, or [`None`] if this is
+    /// the spacer that comes before the first option.
+    ///
+    /// This field is an aid to traversing such option in cyclic order,
+    /// from left to right. It corresponds to the `ULINK` pointer in
+    /// Knuth's data structure.
+    first_in_prev: Option<NodeIndex>,
+    /// The last node in the succeeding option, or [`None`] if this is
+    /// the spacer that comes after the last option.
+    ///
+    /// This field is an aid to traversing such option in cyclic order,
+    /// from right to left. It corresponds to the `DLINK` pointer in
+    /// Knuth's data structure.
+    last_in_next: Option<NodeIndex>,
+}
+
+/// A record in the sequential table of [`ExactCovers`] that either is
+/// a separator between the items of two options, or it refers to one
+/// of these items.
+#[derive(Copy, Clone)]
+enum Record {
+    /// A spacer between options.
+    Spacer(Spacer),
+    /// An internal node.
+    Node(Node),
+}
+
+impl Record {
+    /// Creates a spacer node, where `first_in_prev` and `last_in_prev` are
+    /// respectively the indices of the first and last nodes in the options
+    /// before and after the spacer (if any).
+    pub fn spacer(first_in_prev: Option<NodeIndex>, last_in_next: Option<NodeIndex>) -> Self {
+        Self::Spacer(Spacer {
+            first_in_prev,
+            last_in_next,
+        })
     }
 }
 
@@ -166,19 +210,14 @@ impl Node {
 /// [solutions]: `ExactCover`
 /// [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 pub struct ExactCovers<'i, I> {
-    /// The items in the horizontal list.
+    /// The $N=N_1+N_2$ items, some of which are uncovered and consequently
+    /// appear in the currently active lists.
     items: Vec<Item<'i, I>>,
-    /// The nodes within the vertical lists.
-    nodes: Vec<Node>,
+    /// The [nodes](`Node`) within the vertical lists, with [spacers](`Spacer`)
+    /// between them.
+    records: Vec<Record>,
     /// A stack of node pointers used for backtracking.
     pointers: Vec<NodeIndex>,
-    /// Whether the problem has options with no primary items.
-    ///
-    /// Algorithm X needs to perform a nonnegligible amount of computation
-    /// to discard solutions that contain purely secondary options. We keep
-    /// track of the presence of these options in `self.items` to see if it
-    /// is valid to skip these additional steps.
-    has_purely_secondary_options: bool,
 }
 
 impl<'i, I: Eq> ExactCovers<'i, I> {
@@ -200,7 +239,11 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         // Construct the horizontal list.
         let n_1 = primary.len();
         let n = primary.len() + secondary.len();
-        let header = iter::once(Item::header(n_1));
+        let last_primary_ix = ItemIndex::new(n_1);
+        let primary_head = Item::header(last_primary_ix, ItemIndex::new(1));
+        let first_secondary_ix = last_primary_ix.increment();
+        let last_secondary_ix = ItemIndex::new(if secondary.is_empty() { n + 1 } else { n });
+        let secondary_head = Item::header(last_secondary_ix, first_secondary_ix);
         let items = primary
             .iter()
             .chain(secondary)
@@ -210,7 +253,7 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
                 // Ensure that no item appears twice in the horizontal list, but
                 // only check this invariant in debug mode: We don't require `T`
                 // to be bound by `Ord` nor `Hash`, so this operation needs $O(N)$
-                // steps.
+                // steps per item.
                 debug_assert!(
                     !primary.iter().take(prev_ix).any(|o| o == label),
                     "item at index {cur_ix:?} is already in the primary item list"
@@ -222,26 +265,23 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
                 // SAFETY: `cur_ix` does not refer to the header.
                 Item::new(label, cur_ix.decrement(), cur_ix.increment())
             });
-        let mut items: Vec<Item<'i, I>> = header.chain(items).collect();
+        let mut items: Vec<Item<'i, I>> = iter::once(primary_head)
+            .chain(items)
+            .chain(iter::once(secondary_head))
+            .collect();
         // Only the primary items appear in the active list:
         if !secondary.is_empty() {
-            // 1. Link the first secondary item to the last item, and vice versa.
-            items[n_1 + 1].left = ItemIndex::new(n);
-            items[n].right = ItemIndex::new(n_1 + 1);
+            // 1. Link the first secondary item to the secondary header.
+            items[n_1 + 1].left = ItemIndex::new(n + 1);
+            // items[n].right = ItemIndex::new(n_1 + 1);
         }
-        // 2. Link the last primary item to the header (the header already points
-        //    to the $N_1$th item thanks to `Item::header`).
-        items[n_1].right = ItemIndex::HEADER;
+        // 2. Link the last primary item to the primary header.
+        items[n_1].right = PRIMARY_HEADER;
         Self {
             items,
             // Create the node arena, and insert the first spacer.
-            nodes: vec![Node {
-                item: ItemIndex::HEADER,
-                above: None,
-                below: None,
-            }],
+            records: vec![Record::spacer(None, None)],
             pointers: Vec::new(),
-            has_purely_secondary_options: false,
         }
     }
 
@@ -260,11 +300,11 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
             item.first_option = Some(ix);
             None
         };
-        self.nodes.push(Node {
+        self.records.push(Record::Node(Node {
             item: item_ix,
             above,
             below: None,
-        });
+        }));
     }
 
     /// Appends an option to the exact cover problem.
@@ -279,14 +319,8 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         let items = items.as_ref();
         assert!(!items.is_empty(), "option must have at least one item");
         // We will create one node per item in `items` and a trailing spacer.
-        self.nodes.reserve(items.len() + 1);
-        // Whether the option contains a primary item, and therefore it is not
-        // a purely secondary. Warning: this variable is updated only when
-        // `self.has_purely_secondary_options` is false, because otherwise
-        // we know already that Algorithm X needs to perform the additional
-        // computation possibly avoided by this check.
-        let mut has_primary = false;
-        let first_node_ix = NodeIndex::new(self.nodes.len());
+        self.records.reserve(items.len() + 1);
+        let first_node_ix = NodeIndex::new(self.records.len());
         let mut node_ix = first_node_ix;
         for (ix, label) in items.iter().enumerate() {
             // Fail if an item label appears more than once in `items`.
@@ -297,30 +331,20 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
             let item_ix = self.find_item(label).unwrap_or_else(|| {
                 panic!("item at index {ix} of option must be in the problem's item list")
             });
-            if !self.has_purely_secondary_options {
-                if !has_primary && self.is_active(item_ix) {
-                    // An item is primary if it appears in the active list.
-                    has_primary = true;
-                }
-            }
             // Append the new node to the vertical list of `item`.
             self.append_node(item_ix, node_ix);
             node_ix = node_ix.increment();
         }
-        if !self.has_purely_secondary_options && !has_primary {
-            // We just encountered the first purely secondary option.
-            self.has_purely_secondary_options = true;
-        }
         // Link the previous spacer to the last node in the option.
         // The first spacer cannot be referenced directly; see `NodeIndex`.
-        let prev_spacer = &mut self.nodes[first_node_ix.get() - 1];
-        prev_spacer.below = node_ix.decrement();
+        let prev_spacer = &mut self.records[first_node_ix.get() - 1];
+        if let Record::Spacer(Spacer { last_in_next, .. }) = prev_spacer {
+            *last_in_next = node_ix.decrement();
+        } else {
+            panic!("the record before the first node should be a spacer");
+        }
         // Create the next spacer, and link it to the first node in the option.
-        self.nodes.push(Node {
-            item: ItemIndex::HEADER,
-            above: Some(first_node_ix),
-            below: None,
-        });
+        self.records.push(Record::spacer(Some(first_node_ix), None));
     }
 
     // Algorithm X routines.
@@ -361,29 +385,28 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         // until reaching the given index `ix`.
         let mut cur_ix = ix.increment();
         while cur_ix != ix {
-            let node = self.node(cur_ix);
-            if node.is_spacer() {
-                // Return to the first item in the option.
-                cur_ix = node.above.expect("spacer should have an above link");
-            } else {
-                // Remove `node` from its vertical list.
-                let (above_ix, below_ix) = (node.above, node.below);
-                let item_ix = node.item;
-                if let Some(above_ix) = above_ix {
-                    self.node_mut(above_ix).below = below_ix;
-                } else {
-                    self.item_mut(item_ix).first_option = below_ix;
+            cur_ix = match *self.record(cur_ix) {
+                Record::Spacer(Spacer { first_in_prev, .. }) => {
+                    // Return to the first item in the option.
+                    first_in_prev.unwrap()
                 }
-                if let Some(below_ix) = below_ix {
-                    self.node_mut(below_ix).above = above_ix;
-                } else {
-                    self.item_mut(item_ix).last_option = above_ix;
+                Record::Node(Node { item, above, below }) => {
+                    if let Some(above) = above {
+                        self.node_mut(above).below = below;
+                    } else {
+                        self.item_mut(item).first_option = below;
+                    }
+                    if let Some(below) = below {
+                        self.node_mut(below).above = above;
+                    } else {
+                        self.item_mut(item).last_option = above;
+                    }
+                    // Update the length of the vertical list.
+                    self.item_mut(item).len -= 1;
+                    // Continue to go rightwards.
+                    cur_ix.increment()
                 }
-                // Update the length of the vertical list.
-                self.item_mut(item_ix).len -= 1;
-                // Continue to go rightwards.
-                cur_ix = cur_ix.increment();
-            }
+            };
         }
     }
 
@@ -419,38 +442,41 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         let ix = ix.get();
         let mut cur_ix = ix - 1;
         while cur_ix != ix {
-            let node = &self.nodes[cur_ix];
-            if node.is_spacer() {
-                // Return to the last item in the option.
-                cur_ix = node.below.expect("spacer should have a below link").get();
-            } else {
-                // Reinsert `node` into its vertical list.
-                let (above_ix, below_ix) = (node.above, node.below);
-                let item_ix = node.item;
-                // SAFETY: `node` is not a spacer, so `cur_ix > 0`.
-                let wrapped_ix = Some(NodeIndex::new(cur_ix));
-                if let Some(below_ix) = below_ix {
-                    self.node_mut(below_ix).above = wrapped_ix;
-                } else {
-                    self.item_mut(item_ix).last_option = wrapped_ix;
+            cur_ix = match self.records[cur_ix] {
+                Record::Spacer(Spacer { last_in_next, .. }) => {
+                    // Return to the last item in the option.
+                    last_in_next
+                        .expect("spacer should have a last_in_next link")
+                        .get()
                 }
-                if let Some(above_ix) = above_ix {
-                    self.node_mut(above_ix).below = wrapped_ix;
-                } else {
-                    self.item_mut(item_ix).first_option = wrapped_ix;
+                Record::Node(Node { item, above, below }) => {
+                    // Reinsert `node` into its vertical list.
+                    // SAFETY: `node` is not a spacer, so `cur_ix > 0`.
+                    let wrapped_ix = Some(NodeIndex::new(cur_ix));
+                    if let Some(above) = above {
+                        self.node_mut(above).below = wrapped_ix;
+                    } else {
+                        self.item_mut(item).first_option = wrapped_ix;
+                    }
+                    if let Some(below) = below {
+                        self.node_mut(below).above = wrapped_ix;
+                    } else {
+                        self.item_mut(item).last_option = wrapped_ix;
+                    }
+                    // Update the length of the vertical list.
+                    self.item_mut(item).len += 1;
+                    // Continue to go leftwards.
+                    cur_ix - 1
                 }
-                // Update the length of the vertical list.
-                self.item_mut(item_ix).len += 1;
-                // Continue to go leftwards.
-                cur_ix -= 1;
-            }
+            };
         }
     }
 
-    /// Finds an active item $i$ for which $h(i)$ is minimum, where $h$
-    /// is usually a heuristic function intended to reduce the amount of
+    /// Finds an active primary item $i$ for which $h(i)$ is minimum, where
+    /// $h$ is usually a heuristic function intended to reduce the amount of
     /// branching performed by Algorithm X. In case of equality, ties are
-    /// broken by using the position of $i$ within the horizontal list.
+    /// broken by using the position of $i$ within the horizontal list of
+    /// active primary items.
     ///
     /// Returns `None` if all items have been covered.
     fn choose_item<H>(&self, heuristic: H) -> Option<ItemIndex>
@@ -459,8 +485,8 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
     {
         let mut min_h = usize::MAX;
         let mut min_ix = None;
-        let mut cur_ix = self.header().right;
-        while cur_ix != ItemIndex::HEADER {
+        let mut cur_ix = self.primary_head().right;
+        while cur_ix != PRIMARY_HEADER {
             let item = self.item(cur_ix);
             let h = heuristic(item);
             if h < min_h {
@@ -478,19 +504,21 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
 
     /// Given a node corresponding to the covering of a particular item $i$
     /// with some option $o$, deletes all the items $\neq i$ in $o$ from
-    /// the list of items that need to be covered.
+    /// the lists of active items that have not been covered.
     ///
     /// This function is part of step X5 in Knuth's Algorithm X.
     fn cover_items_of(&mut self, ix: NodeIndex) {
         // Cover the items cyclically from left to right.
         let mut cur_ix = ix.increment();
         while cur_ix != ix {
-            let node = self.node(cur_ix);
-            if node.is_spacer() {
-                cur_ix = node.above.expect("spacer should have an above link");
-            } else {
-                self.cover(node.item);
-                cur_ix = cur_ix.increment();
+            cur_ix = match self.record(cur_ix) {
+                Record::Spacer(Spacer { first_in_prev, .. }) => {
+                    first_in_prev.expect("spacer should have a first_in_prev link")
+                }
+                Record::Node(Node { item, .. }) => {
+                    self.cover(*item);
+                    cur_ix.increment()
+                }
             }
         }
     }
@@ -507,12 +535,14 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         let ix = ix.get();
         let mut cur_ix = ix - 1;
         while cur_ix != ix {
-            let node = &self.nodes[cur_ix];
-            if node.is_spacer() {
-                cur_ix = node.below.expect("spacer should have a below link").get();
-            } else {
-                self.uncover(node.item);
-                cur_ix -= 1;
+            cur_ix = match &self.records[cur_ix] {
+                Record::Spacer(Spacer { last_in_next, .. }) => last_in_next
+                    .expect("spacer should have a last_in_next link")
+                    .get(),
+                Record::Node(Node { item, .. }) => {
+                    self.uncover(*item);
+                    cur_ix - 1
+                }
             }
         }
     }
@@ -522,7 +552,6 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
     where
         F: FnMut(ExactCover<'_, 'i, I>),
     {
-        // let mut solution_cache = Vec::new();
         // The heuristic function used in step X3 to choose an active item
         // for branching. Knuth found that selecting an item whose vertical
         // list is of minimum length often works well in practice; this strategy
@@ -602,27 +631,26 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
     /// hide operations during the covering of items $\neq i$ in step X5
     /// of Algorithm X.
     fn is_valid_solution(&self) -> bool {
-        if !self.has_purely_secondary_options {
-            return true;
-        }
+        // todo: update the following comment.
         // Of course, an option can be purely secondary only if the problem
         // has secondary items. These occupy the last $N_2$ positions of
-        // the `self.items` arena. Access the one at the end and traverse
-        // the horizontal list of active secondary items.
-        let last_secondary_ix = ItemIndex::new(self.items.len() - 1);
-        let mut cur_ix = last_secondary_ix;
-        loop {
+        // the `self.items` arena.
+        // Access the one at the end and traverse the horizontal list of active
+        // secondary items.
+        let secondary_head_ix = ItemIndex::new(self.items.len() - 1);
+        let secondary_head = self.secondary_head();
+        let first_active_secondary_ix = secondary_head.right;
+        let mut cur_ix = first_active_secondary_ix;
+        while cur_ix != secondary_head_ix {
             let item = self.item(cur_ix);
             if item.len > 0 {
                 return false; // Skip the solution.
             }
             cur_ix = item.right;
-            if last_secondary_ix == cur_ix {
-                // We have traversed the entire list of active
-                // secondary items; visit the solution.
-                return true;
-            }
         }
+        // We have traversed the entire list of active secondary items;
+        // visit the solution.
+        true
     }
 
     // todo: it would be nice to accept any implementor of the `Extend` trait
@@ -642,16 +670,18 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         result.clear();
         let mut cur_ix = ix;
         loop {
-            let node = self.node(cur_ix);
-            if node.is_spacer() {
-                cur_ix = node.above.expect("spacer should have an above link");
-            } else {
-                let item = self.item(node.item);
-                // SAFETY: `node.item` points to a nonheader node in the item
-                // table, so its label is initialized.
-                result.push(unsafe { item.label.assume_init() });
-                cur_ix = cur_ix.increment();
-            }
+            cur_ix = match self.record(cur_ix) {
+                Record::Spacer(Spacer { first_in_prev, .. }) => {
+                    first_in_prev.expect("spacer should have a first_in_prev link")
+                }
+                Record::Node(Node { item, .. }) => {
+                    let item = self.item(*item);
+                    // SAFETY: `item` is a nonheader node in the item table,
+                    // so its label is initialized.
+                    result.push(unsafe { item.label.assume_init() });
+                    cur_ix.increment()
+                }
+            };
             if cur_ix == ix {
                 break;
             }
@@ -676,65 +706,72 @@ impl<'i, I: Eq> ExactCovers<'i, I> {
         &mut self.items[ix.get()]
     }
 
-    /// Returns a reference to the header of the horizontal list.
-    fn header(&self) -> &Item<'i, I> {
-        self.item(ItemIndex::HEADER)
+    /// Returns a reference to the head of the list of primary items
+    /// that need to be covered.
+    fn primary_head(&self) -> &Item<'i, I> {
+        self.item(PRIMARY_HEADER)
     }
 
-    /// Search through the table of primary and secondary items to find the node
-    /// with the given label, if any.
+    /// Returns a reference to the head of the list of secondary items
+    /// that can still be covered.
+    fn secondary_head(&self) -> &Item<'i, I> {
+        self.items.last().unwrap()
+    }
+
+    /// Search through the table of primary and secondary items to find
+    /// the node with the given label, if any.
     fn find_item(&self, label: &'i I) -> Option<ItemIndex> {
         // Remember that `T` is not bound by `Ord` nor `Hash`, so we need to
         // search through the whole `items` list in order to find the node
         // corresponding to `label` in the worst case.
-        self.items
-            .iter()
-            .enumerate()
-            .skip(1)
+        let mut nodes = self.items.iter().enumerate();
+        // Skip the heads of the active item lists.
+        nodes.next();
+        nodes.next_back();
+        nodes
             .find(|(_, item)| {
-                // SAFETY: `item` is not the header, so its label is initialized.
+                // SAFETY: `item` is not a header, so its label is initialized.
                 let other_label = unsafe { item.label.assume_init() };
                 label == other_label
             })
             .map(|(ix, _)| ItemIndex::new(ix))
     }
 
-    /// Returns whether the item at the given position appears in the active
-    /// list, and thus is a primary item.
+    /// Returns a reference to the record at the given position.
     ///
     /// # Panics
     ///
-    /// This function panics if the item index is out of bounds.
-    fn is_active(&self, ix: ItemIndex) -> bool {
-        assert!(ix.get() < self.items.len(), "index out of bounds");
-        // An item is in the active list if there is a chain of pointers
-        // that connects the header and `item`.
-        let mut cur_ix = self.header().right;
-        while cur_ix != ItemIndex::HEADER {
-            if cur_ix == ix {
-                return true;
-            }
-            cur_ix = self.item(cur_ix).right;
-        }
-        false
+    /// This function panics if the index is out of bounds.
+    fn record(&self, ix: NodeIndex) -> &Record {
+        &self.records[ix.get()]
     }
 
     /// Returns a reference to the node at the given position.
     ///
     /// # Panics
     ///
-    /// This function panics if the index is out of bounds.
+    /// This function panics if the index is out of bounds, or if the record
+    /// referenced is a [spacer](`Record::Spacer`) rather than a node.
     fn node(&self, ix: NodeIndex) -> &Node {
-        &self.nodes[ix.get()]
+        if let Record::Node(node) = self.record(ix) {
+            node
+        } else {
+            panic!("record at index {ix:?} is not a node")
+        }
     }
 
     /// Returns a mutable reference to the node at the given position.
     ///
     /// # Panics
     ///
-    /// This function panics if the index is out of bounds.
+    /// This function panics if the index is out of bounds, or if the record
+    /// referenced is a [spacer](`Record::Spacer`) rather than a node.
     fn node_mut(&mut self, ix: NodeIndex) -> &mut Node {
-        &mut self.nodes[ix.get()]
+        if let Record::Node(node) = &mut self.records[ix.get()] {
+            node
+        } else {
+            panic!("record at index {ix:?} is not a node")
+        }
     }
 }
 
@@ -796,53 +833,63 @@ mod tests {
     #[test]
     fn new_exact_cover_with_primary_only() {
         let solver = ExactCovers::new(&[1, 2, 3], &[]);
-        assert_eq!(solver.items.len(), 4); // header + 3 items
+        assert_eq!(solver.items.len(), 5); // 2 headers + 3 items
 
-        let header = solver.header();
-        assert_eq!(header.left, ItemIndex::new(3));
-        assert_eq!(header.right, ItemIndex::new(1));
+        let primary_header = solver.primary_head();
+        assert_eq!(primary_header.left, ItemIndex::new(3));
+        assert_eq!(primary_header.right, ItemIndex::new(1));
 
         let one = solver.item(ItemIndex::new(1));
-        assert_eq_item(one, &1, ItemIndex::HEADER, ItemIndex::new(2));
+        assert_eq_item(one, &1, PRIMARY_HEADER, ItemIndex::new(2));
 
         let two = solver.item(ItemIndex::new(2));
         assert_eq_item(two, &2, ItemIndex::new(1), ItemIndex::new(3));
 
         let three = solver.item(ItemIndex::new(3));
-        assert_eq_item(three, &3, ItemIndex::new(2), ItemIndex::HEADER);
+        assert_eq_item(three, &3, ItemIndex::new(2), PRIMARY_HEADER);
+
+        let secondary_header = solver.secondary_head();
+        assert_eq!(secondary_header.left, ItemIndex::new(4));
+        assert_eq!(secondary_header.right, ItemIndex::new(4));
     }
 
     #[test]
     fn new_exact_cover_with_primary_and_secondary() {
         let solver = ExactCovers::new(&['a', 'b', 'c'], &['d', 'e', 'f']);
-        assert_eq!(solver.items.len(), 7); // header + 6 items
+        assert_eq!(solver.items.len(), 8); // 2 headers + 6 items
 
-        // The left link of the header points to the last primary item,
-        // because the secondary items do not appear in the active list.
-        let header = solver.header();
-        assert_eq!(header.left, ItemIndex::new(3));
-        assert_eq!(header.right, ItemIndex::new(1));
+        // The left link of this header points to the last primary item,
+        // because the secondary items do not appear in the active list
+        // of primary items.
+        let primary_header = solver.primary_head();
+        assert_eq!(primary_header.left, ItemIndex::new(3));
+        assert_eq!(primary_header.right, ItemIndex::new(1));
 
         let a = solver.item(ItemIndex::new(1));
-        assert_eq_item(a, &'a', ItemIndex::HEADER, ItemIndex::new(2));
+        assert_eq_item(a, &'a', PRIMARY_HEADER, ItemIndex::new(2));
 
         let b = solver.item(ItemIndex::new(2));
         assert_eq_item(b, &'b', ItemIndex::new(1), ItemIndex::new(3));
 
-        // The right link of the last primary item points to the header.
+        // The right link of the last primary item points to the primary header.
         let c = solver.item(ItemIndex::new(3));
-        assert_eq_item(c, &'c', ItemIndex::new(2), ItemIndex::HEADER);
+        assert_eq_item(c, &'c', ItemIndex::new(2), PRIMARY_HEADER);
 
-        // The left link of the first secondary item points to the last secondary one.
+        // The left link of the first secondary item points to the secondary header.
         let d = solver.item(ItemIndex::new(4));
-        assert_eq_item(d, &'d', ItemIndex::new(6), ItemIndex::new(5));
+        assert_eq_item(d, &'d', ItemIndex::new(7), ItemIndex::new(5));
 
         let e = solver.item(ItemIndex::new(5));
         assert_eq_item(e, &'e', ItemIndex::new(4), ItemIndex::new(6));
 
-        // The right link of the last secondary item points to the first secondary one.
+        // The right link of the last secondary item points to the secondary header.
         let a = solver.item(ItemIndex::new(6));
-        assert_eq_item(a, &'f', ItemIndex::new(5), ItemIndex::new(4));
+        assert_eq_item(a, &'f', ItemIndex::new(5), ItemIndex::new(7));
+
+        // The right link of this header points to the first secondary item.
+        let secondary_header = solver.secondary_head();
+        assert_eq!(secondary_header.left, ItemIndex::new(6));
+        assert_eq!(secondary_header.right, ItemIndex::new(4));
     }
 
     #[test]
@@ -858,18 +905,6 @@ mod tests {
         assert_eq!(solver.find_item(&'b'), Some(ItemIndex::new(2)));
         assert_eq!(solver.find_item(&'c'), Some(ItemIndex::new(3)));
         assert_eq!(solver.find_item(&'d'), Some(ItemIndex::new(4)));
-
-        assert!(solver.is_active(ItemIndex::new(1)));
-        assert!(solver.is_active(ItemIndex::new(2)));
-        assert!(!solver.is_active(ItemIndex::new(3)));
-        assert!(!solver.is_active(ItemIndex::new(4)));
-    }
-
-    #[test]
-    #[should_panic]
-    fn out_of_bounds_is_active() {
-        let solver = ExactCovers::new(&[1, 2], &[]);
-        solver.is_active(ItemIndex::new(3));
     }
 
     #[test]
@@ -889,14 +924,11 @@ mod tests {
         let mut option = Vec::new();
         solver.solve(|mut solution| {
             assert!(solution.next(&mut option));
-            // assert_eq!(option, &[&'a', &'d', &'g']);
-            println!("{option:?}");
+            assert_eq!(option, &[&'a', &'d', &'g']);
             assert!(solution.next(&mut option));
-            // assert_eq!(option, &[&'b', &'c', &'f']);
-            println!("{option:?}");
+            assert_eq!(option, &[&'b', &'c', &'f']);
             assert!(!solution.next(&mut option));
             count += 1;
-            println!("---");
         });
         assert_eq!(count, 1);
     }

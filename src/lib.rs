@@ -6,7 +6,7 @@
 //!
 //! D. E. Knuth proposed a method for solving the exact cover problem in the paper
 //! [_Dancing Links_][dl], whose title refers to a clever yet simple technique
-//! technique for deleting and restoring the nodes of a doubly linked list.
+//! for deleting and restoring the nodes of a doubly linked list.
 //! His backtracking algorithm, called _Algorithm X_, employs this "waltzing"
 //! of links to visit all exact covers of $I$ with options $\mathcal{O}$ in
 //! a recursive, depth-first manner. For further information, see Section 7.2.2.1

@@ -12,7 +12,7 @@ $\mathcal{O}^\star$.
 
 D. E. Knuth proposed a method for solving the exact cover problem in the paper
 [_Dancing Links_][dl], whose title refers to a clever yet simple technique
-technique for deleting and restoring the nodes of a doubly linked list.
+for deleting and restoring the nodes of a doubly linked list.
 His backtracking algorithm, called _Algorithm X_, employs this "waltzing"
 of links to visit all exact covers of $I$ with options $\mathcal{O}$ in
 a recursive, depth-first manner. For further information, see Section 7.2.2.1
@@ -33,9 +33,7 @@ Also, the [`examples`] directory contains an instructive set of programs that
 apply these algorithms to a variety of problems:
 - [`langford_pairs.rs`] finds all [Langford pairings] of $2n$ numbers.
 - [`polycube_packing.rs`] computes the number of ways to arrange 25 [Y pentacubes]
-  in a $5\times 5\times 5$ cuboid. R. Honsberger's book [_Mathematical Gems II_][mgems]
-  (1976), Chapter 8, provides a good introduction to the techniques for solving
-  polycube packing puzzles.
+  in a $5\times 5\times 5$ cuboid. 
 
 # License
 
@@ -50,4 +48,3 @@ apply these algorithms to a variety of problems:
 [Langford pairings]: https://en.wikipedia.org/wiki/Langford_pairing
 [`polycube_packing.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/polycube_packing.rs
 [Y pentacubes]: https://en.wikipedia.org/wiki/Polycube
-[mgems]: https://bookstore.ams.org/dol-2
