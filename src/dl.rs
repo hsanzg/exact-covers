@@ -547,7 +547,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
         todo!()
     }
 
-    fn solve<F>(&mut self, mut visit: F)
+    fn solve<F>(mut self, mut visit: F)
     where
         F: FnMut(Solution<'_, 'i, I, C, Self>),
     {
@@ -586,7 +586,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
                     //     recursion level.
                     if self.is_valid_solution() {
                         visit(Solution {
-                            solver: self,
+                            solver: &mut self,
                             level: 0,
                             _phantom: PhantomData,
                         });

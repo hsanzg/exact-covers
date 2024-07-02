@@ -155,7 +155,7 @@ pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
         S: AsRef<[(&'s I, C)]>;
 
     /// Calls a closure on each solution to the XCC problem.
-    fn solve<F>(&mut self, visit: F)
+    fn solve<F>(self, visit: F)
     where
         F: FnMut(Solution<'_, 'i, I, C, Self>);
 }
