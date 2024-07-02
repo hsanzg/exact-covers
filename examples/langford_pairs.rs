@@ -2,9 +2,9 @@
 //! into $2n$ slots $s_1,\dots,s_{2n}$ so that there are exactly $i$ numbers
 //! between the two appearances of $i$, for all $1\leq i\leq n$. This task is
 //! known as _Langford's problem_, since it was first described by C. D. Langford
-//! [[_The Mathematical Gazette_ 42 (October 1958), 228][mathgaz]]. Its encoding
+//! [[_The Mathematical Gazette_ **42** (October 1958), 228][mathgaz]]. Its encoding
 //! as an exact cover problem is well explained in D. E. Knuth's book
-//! [_The Art of Computer Programming_ 4B (2022)][taocp4b], Part 2, page 70.
+//! [_The Art of Computer Programming_ **4B** (2022)][taocp4b], Part 2, page 70.
 //! His approach can be summarized as follows:
 //!
 //! Regard the $n$ values of $i$ and the $2n$ slots as the items to be covered.
@@ -16,7 +16,7 @@
 //! [mathgaz]: https://www.cambridge.org/core/journals/mathematical-gazette/article/abs/problem/557F7BBB739F5B3E0D152C270642B102
 //! [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 
-use exact_covers::{Problem, Solver};
+use exact_covers::{DlSolver, Solver};
 
 /// A Langford pair can exist only when $n$ is congruent to 0 or 3 modulo 4.
 /// This is because the two entries of an odd number must either both go in
@@ -36,11 +36,11 @@ enum Item {
 }
 
 fn main() {
-    /*let numbers = (1..=N).map(Item::Number);
+    let numbers = (1..=N).map(Item::Number);
     let slots = (1..=2 * N).map(Item::Slot);
     let items: Vec<_> = numbers.chain(slots).collect();
 
-    let mut problem = Problem::new(&items, &[]);
+    let mut solver: DlSolver<Item, ()> = DlSolver::new(&items, &[]);
     for i in 1..=N {
         // Optimization: half of the Langford pairs for a given value of $n$
         // are the reverses of the others. Reduce the search space by placing
@@ -48,12 +48,11 @@ fn main() {
         let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
         for j in first_slot_range {
             let k = i + j + 1;
-            let option = [&Item::Number(i), &Item::Slot(j), &Item::Slot(k)];
-            problem.add_option(option);
+            let primary = [&Item::Number(i), &Item::Slot(j), &Item::Slot(k)];
+            solver.add_option(primary, []);
         }
     }
 
-    let mut solver = Solver::solve(problem);
     let mut options = Vec::new();
     solver.solve(|mut solution| {
         assert_eq!(solution.option_count(), N);
@@ -75,5 +74,5 @@ fn main() {
         println!("{:?}", placement);
         placement.reverse();
         println!("{:?}", placement);
-    });*/
+    });
 }

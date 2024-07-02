@@ -22,8 +22,8 @@ achieves this goal in the paper "Dancing Links", [arXiv:cs/0011047][dl] [cs.DS]
 restoring the nodes of a doubly linked list. His backtracking scheme, called
 _Algorithm X_, employs this "waltzing" of links to visit all exact covers
 with options $\mathcal{O}$ in a recursive, depth-first manner. [For further
-information, see Section 7.2.2.1 of [_The Art of Computer Programming_ 4B (2022)][taocp4b],
-Part 2, 65--70.]
+information, see Section 7.2.2.1 of [_The Art of Computer Programming_ **4B** (2022)][taocp4b],
+Part 2, 65–70.]
 
 A slight modification of Algorithm X solves the considerably more general
 problem in which items fall into one of two categories: _primary_ and _secondary_.
@@ -39,35 +39,35 @@ one of $\mathcal{O}^\star$'s options provided that their colors are compatible.)
 
 Fortunately the dancing links technique is also well suited to XCC problems.
 Knuth proved this when he introduced Algorithm C in Section 7.2.2.1 of
-[_TAOCP_ 4B][taocp4b], part 2, pages 87--91; his new procedure extends
+[_TAOCP_ **4B**][taocp4b], part 2, pages 87–91; his new procedure extends
 Algorithm X to colors. In 2020, C. Solnon suggested using the sparse-set
-data structure of P. Briggs and L. Torczon [[_ACM Letters on Programming Languages and Systems_ 2 (1993)][sparsesets],
-59--69] to store the database of currently active options and the list of
+data structure of P. Briggs and L. Torczon [[_ACM Letters on Programming Languages and Systems_ **2** (1993)][sparsesets],
+59–69] to store the database of currently active options and the list of
 items that need to be covered. Knuth prepared an implementation of this
 approach, called the "dancing cells" method, using the conventions of
 Algorithm C. Numerous benchmark tests for these two XCC solvers appear
-in Section 7.2.2.3 of [_TAOCP_ 4C (13 January 2023)][taocp4c], Pre-Fascicle
-7A (preliminary draft), pages 64--65. To summarize the results of these
+in Section 7.2.2.3 of [_TAOCP_ **4C** (13 January 2023)][taocp4c], Pre-Fascicle
+7A (preliminary draft), pages 64–65. To summarize the results of these
 experiments: there is no clear winner, and we don't yet know a rule for
 determining which method is best for a particular instance of XCC.
 
 This crate is a library of subroutines for color-controlled covering of
-$N_1\geq 0$ primary items and $N_2\geq 0$ secondary items in the Rust
+$N_1\ge0$ primary items and $N_2\ge0$ secondary items in the Rust
 programming language. The following structures are its most important pieces:
-- [`Problem`] is a representation of an XCC problem that supports simplification
-  via the removal of _blocking_ and _forcing_. [For a discussion of these
-  preprocessing operations, see [Knuth, _TAOCP_ 4B (2022)][taocp4b], Part 2,
-  108--111.]
-- [`dl::Solver`] finds all solutions to an XCC problem. It implements
+- [`DlSolver`] finds all solutions to an XCC problem. It implements
   a slightly modified form of Knuth's Algorithm 7.2.2.1C.
-- [`dc::Solver`] adheres to the same input and output conventions as the
+- [`DcSolver`] adheres to the same input and output conventions as the
   previous structure, but it uses the dancing cells technique.
+
+Both implementations support option simplification via the removal of
+_blocking_ and _forcing_. [For a discussion of these preprocessing operations,
+see [Knuth, _TAOCP_ **4B** (2022)][taocp4b], Part 2, 108–111.]
 
 Also, the [`examples`] directory contains an instructive set of programs
 that apply these algorithms to a variety of problems:
 - [`langford_pairs.rs`] finds all [Langford pairings] of $2n$ numbers.
 - [`polycube_packing.rs`] computes the number of ways to arrange 25 [Y pentacubes]
-  in a $5\times 5\times 5$ cuboid.
+  in a $5\times5\times5$ cuboid.
 - [`domino_chessboard.rs`] finds all ways to pack 32 dominoes into a chessboard.
 
 [dl]: https://arxiv.org/pdf/cs/0011047.pdf
@@ -88,5 +88,5 @@ that apply these algorithms to a variety of problems:
 [MIT](LICENSE) &copy; [Hugo Sanz González](https://hgsg.me)
 
 [`Problem`]: https://docs.rs/exact-covers/latest/exact-covers/struct.Problem.html
-[`dl::Solver`]: https://docs.rs/exact-covers/latest/exact-covers/dl/struct.Solver.html
-[`dc::Solver`]: https://docs.rs/exact-covers/latest/exact-covers/dc/struct.Solver.html
+[`DlSolver`]: https://docs.rs/exact-covers/latest/exact-covers/struct.DlSolver.html
+[`DcSolver`]: https://docs.rs/exact-covers/latest/exact-covers/struct.DcSolver.html
