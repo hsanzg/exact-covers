@@ -3,7 +3,9 @@
 //! [_The Art of Computer Programming_ **4B** (2022)][taocp4b], Part 2,
 //! illustrates the 29 pentacubes.) We formulate this task as an exact
 //! cover problem, with one item for each of the $125$ positions to cover,
-//! and one option for each [legal placement] of a piece.
+//! and one option for each [legal placement] of a piece. The program can
+//! be readily adapted to fill an arbitrary shape with a given set of
+//! polycubes.
 //!
 //! Chapter 8 of R. Honsberger's book [_Mathematical Gems II_][mgems] (1976)
 //! provides a good introduction to the techniques for solving polycube packing
