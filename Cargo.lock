@@ -5,3 +5,12 @@ version = 3
 [[package]]
 name = "exact-covers"
 version = "0.2.0"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "smallvec"
+version = "2.0.0-alpha.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66778689f64ae4f4e9365890e55048783afc0bb07a8e214b0bcfe7b88e6bb2bf"

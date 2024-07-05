@@ -19,3 +19,6 @@ edition = "2021"
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 rustdoc-args = ["--examples", "--html-in-header", "misc/katex-header.html"]
+
+[dev-dependencies]
+smallvec = "2.0.0-alpha.6"
