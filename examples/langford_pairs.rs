@@ -1,6 +1,6 @@
 //! The following program finds all ways to put $2n$ numbers $\\{1,1,2,2,\dots,n,n\\}$
 //! into $2n$ slots $s_1,\dots,s_{2n}$ so that there are exactly $i$ numbers
-//! between the two appearances of $i$, for all $1\leq i\leq n$. This task is
+//! between the two appearances of $i$, for all $1\le i\le n$. This task is
 //! known as _Langford's problem_, since it was first described by C. D. Langford
 //! [[_The Mathematical Gazette_ **42** (October 1958), 228][mathgaz]]. Its encoding
 //! as an exact cover problem is well explained in D. E. Knuth's book
@@ -9,7 +9,7 @@
 //!
 //! Regard the $n$ values of $i$ and the $2n$ slots as the items to be covered.
 //! Then the legal options for permuting the first $n$ integers into a Langford
-//! sequence are $`i\\;s_j\\;s_k'$ for $1\leq i\leq n$, $1\leq j<k\leq 2n$, and
+//! sequence are $`i\\;s_j\\;s_k'$ for $1\le i\le n$, $1\le j<k\le 2n$, and
 //! $k=i+j+1$. In this way the distance between slots $s_j$ and $s_k$ for item
 //! $i$ is $k-j=i+j+1-j=i+1$, as desired.
 //!
@@ -44,7 +44,7 @@ fn main() {
     for i in 1..=N {
         // Optimization: half of the Langford pairs for a given value of $n$
         // are the reverses of the others. Reduce the search space by placing
-        // the first 1 in position $1\leq s_j<n$.
+        // the first 1 in position $1\le s_j<n$.
         let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
         for j in first_slot_range {
             let k = i + j + 1;

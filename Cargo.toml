@@ -20,5 +20,13 @@ edition = "2021"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 rustdoc-args = ["--examples", "--html-in-header", "misc/katex-header.html"]
 
+[[example]]
+name = "langford_pairs"
+doc-scrape-examples = true
+
+[[example]]
+name = "polycube_packing"
+doc-scrape-examples = true
+
 [dev-dependencies]
-smallvec = "2.0.0-alpha.6"
+smallvec = "2.0.0-alpha.6" # for polycube_packing example

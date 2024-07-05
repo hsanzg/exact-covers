@@ -1,16 +1,25 @@
+//! The following program finds all ways to pack 25 [Y pentacubes] into
+//! a $5\times5\times5$ box. (Exercise 340 in Section 7.2.2.1 of Knuth's
+//! [_The Art of Computer Programming_ **4B** (2022)][taocp4b], Part 2,
+//! illustrates the 29 pentacubes.) We formulate this task as an exact
+//! cover problem, with one item for each of the $125$ positions to cover,
+//! and one option for each [legal placement] of a piece.
+//!
 //! Chapter 8 of R. Honsberger's book [_Mathematical Gems II_][mgems] (1976)
 //! provides a good introduction to the techniques for solving polycube packing
 //! puzzles.
 //!
+//! [Y pentacube]: https://en.wikipedia.org/wiki/Polycube
+//! [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
+//! [legal placement]: `is_in_bounds`
 //! [mgems]: https://bookstore.ams.org/dol-2
 
 use exact_covers::{DlSolver, Solver};
 use smallvec::SmallVec;
 use std::collections::HashSet;
 use std::iter;
-use std::mem::MaybeUninit;
 
-// A point in the cubic lattice.
+/// A point in the cubic lattice.
 type Position = (i8, i8, i8);
 
 /// A solid object formed by joining $1\times 1\times 1$ cubies face to face.
@@ -32,24 +41,6 @@ impl Polycube {
     /// This is the `const` version of [`Polycube::from`].
     pub const fn from_const(positions: [Position; Self::INLINE_CAP]) -> Self {
         Self(SmallVec::from_buf(positions))
-    }
-
-    /// Creates a polycube with one or more cubies, without copying any data.
-    ///
-    /// # Safety
-    ///
-    /// This function requires that $1\leq\text{len}\leq N$, and that all
-    /// the elements in `positions[..len]` are initialized.
-    pub const unsafe fn from_const_and_len_unchecked(
-        positions: MaybeUninit<[Position; Self::INLINE_CAP]>,
-        len: usize,
-    ) -> Self {
-        assert!(len > 0, "a polycube has one or more cubies");
-        debug_assert!(
-            len <= Self::INLINE_CAP,
-            "cannot fit more than `INLINE_CAP` cubie positions on the stack"
-        );
-        Self(SmallVec::from_buf_and_len_unchecked(positions, len))
     }
 
     /// Applies a transformation to the polycube.
@@ -77,7 +68,7 @@ impl Polycube {
     /// the polycube.
     ///
     /// D. E. Knuth called these the _base placements_ of a polycube in
-    /// exercise 7.2.2.1.266 of [_The Art of Computer Programming_, Volume 4B,
+    /// exercise 7.2.2.1.266 of [_The Art of Computer Programming_ **4B**,
     /// Part 2][taocp] (Addison-Wesley, 2022).
     ///
     /// [taocp]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
@@ -113,6 +104,11 @@ impl Polycube {
         }
         placements
     }
+
+    /// Returns the number of cubies in the polycube.
+    pub fn cubie_count(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl From<&[Position]> for Polycube {
@@ -136,12 +132,8 @@ impl From<Vec<Position>> for Polycube {
 /// the cubie not in the long bar appearing in the up-west position.
 const Y: Polycube = Polycube::from_const([(0, 2, 0), (1, 0, 0), (1, 1, 0), (1, 2, 0), (1, 3, 0)]);
 
-/// An arrangement of polycubes in an $l\times m\times n$ cuboid.
-struct Packing<const L: usize, const M: usize, const N: usize>(
-    /// The polycubes within the cuboid.
-    Vec<Polycube>,
-);
-
+/// Returns `true` if and only if the given polycube lies inside the
+/// $l\times m\times n$ cuboid cornered at the origin.
 fn is_in_bounds(polycube: &Polycube, l: i8, m: i8, n: i8) -> bool {
     let x_min = *polycube.0.iter().map(|(x, _, _)| x).min().unwrap();
     let y_min = *polycube.0.iter().map(|(_, y, _)| y).min().unwrap();
@@ -153,6 +145,8 @@ fn is_in_bounds(polycube: &Polycube, l: i8, m: i8, n: i8) -> bool {
 }
 
 fn main() {
+    // Define the items of the exact cover problem, namely the $lmn$ cells of
+    // the $l\times m\times n$ cuboid.
     let (l, m, n) = (5i8, 5i8, 5i8);
     let positions = (0..l)
         .flat_map(|x| iter::repeat(x).zip(0..m))
@@ -161,8 +155,13 @@ fn main() {
         .collect::<Vec<_>>();
 
     let mut solver: DlSolver<Position, ()> = DlSolver::new(&positions, &[]);
+    // For each base placement $P$ of the Y pentacube, and for each offset
+    // $(x_0,y_0,z_0)$ such that the piece $P'=P+(x_0,y_0,z_0)$ lies within the
+    // $l\times m\times n$ cuboid cornered at the origin, define an option whose
+    // primary items are the cells of $P'$. We break symmetry by constraining
+    // the closest cubie of $P'$ to be at $L_\infty$ distance $\le2$ from the
+    // origin.
     let placements = Y.base_placements();
-    // Create one option per translated placement.
     let mut first = true;
     for placement in placements {
         for (x_0, y_0, z_0) in &positions {
@@ -178,8 +177,9 @@ fn main() {
     }
 
     let mut count = 0;
-    let mut polycube = Vec::new();
+    let mut polycube = Vec::with_capacity(Y.cubie_count());
     solver.solve(|mut solution| {
+        // Print the solution, which consists of a set of 25 pentacubes.
         print!("[");
         while solution.next(&mut polycube) {
             print!("[");
@@ -191,9 +191,10 @@ fn main() {
             }
             print!("],");
         }
-        print!("]");
+        println!("]");
         count += 1;
     });
+    println!("found {count} packings");
 }
 
 #[cfg(test)]
