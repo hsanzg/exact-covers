@@ -111,13 +111,13 @@ pub use dl::Solver as DlSolver;
 /// use exact_covers::{DlSolver, Solver};
 ///
 /// let items = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-/// let mut solver = DlSolver::new(&items, &[]);
-/// solver.add_option([            &'c',       &'e'           ], []);
-/// solver.add_option([&'a',             &'d',            &'g'], []);
-/// solver.add_option([      &'b', &'c',             &'f'     ], []);
-/// solver.add_option([&'a',             &'d',       &'f'     ], []);
-/// solver.add_option([      &'b',                        &'g'], []);
-/// solver.add_option([                  &'d', &'e',      &'g'], []);
+/// let mut solver: DlSolver<char, ()> = DlSolver::new(&items, &[]);
+/// solver.add_option([          'c',      'e'         ], []);
+/// solver.add_option(['a',           'd',          'g'], []);
+/// solver.add_option([     'b', 'c',           'f'    ], []);
+/// solver.add_option(['a',           'd',      'f'    ], []);
+/// solver.add_option([     'b',                    'g'], []);
+/// solver.add_option([               'd', 'e',     'g'], []);
 ///
 /// // We use an auxiliary table to store the items of an option. The chief
 /// // purpose of this reserved storage is to reduce heap allocations when
@@ -148,11 +148,10 @@ pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
     ///
     /// Once all options have been specified, use [`Self::solve`] to visit all
     /// solutions to the problem.
-    fn add_option<'s, P, S>(&'s mut self, primary: P, secondary: S)
+    fn add_option<P, S>(&mut self, primary: P, secondary: S)
     where
-        I: 's,
-        P: AsRef<[&'s I]>,
-        S: AsRef<[(&'s I, C)]>;
+        P: AsRef<[I]>,
+        S: AsRef<[(I, Option<C>)]>;
 
     /// Calls a closure on each solution to the XCC problem.
     fn solve<F>(self, visit: F)

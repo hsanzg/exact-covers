@@ -136,6 +136,12 @@ pub(crate) struct Instance<C> {
     ///
     /// If `item` is a primary item, then this variable is [`None`].
     color: Option<C>,
+    /// Whether this instance is a secondary item that wants the chosen color
+    /// in another purified secondary item. The purpose of this field, which
+    /// is true if and only if `COLOR(x)=-1` in Knuth's Algorithm C, is to
+    /// avoid repeatedly purifying an item; see methods [`Self::purify`]
+    /// and [`Self::unpurify`] for details.
+    wants_color: bool,
 }
 
 /// A node in the sequential table of a [`Solver`] that either is a separator
@@ -184,6 +190,35 @@ pub struct Solver<'i, I, C> {
 }
 
 impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
+    // Problem setup routines.
+
+    /// Appends a new node to the vertical list of the specified item.
+    ///
+    /// If the item is secondary, `color` may specify the color assigned to
+    /// the item by the option (if any). Otherwise `color` must be [`None`].
+    fn append_inst(&mut self, item_ix: ItemIndex, ix: InstIndex, color: Option<C>) {
+        let item = self.item_mut(item_ix);
+        item.len += 1;
+        let above = if let Some(prev_last_ix) = item.last_option.replace(ix) {
+            // Update the `below` link of the new node's predecessor
+            // in the vertical list of `item`.
+            let prev = self.instance_mut(prev_last_ix);
+            prev.below = Some(ix);
+            Some(prev_last_ix)
+        } else {
+            // This is the first option that involves `item`.
+            item.first_option = Some(ix);
+            None
+        };
+        self.nodes.push(Node::Instance(Instance {
+            item: item_ix,
+            above,
+            below: None,
+            color,
+            wants_color: false,
+        }));
+    }
+
     // Algorithm C routines.
 
     /// Marks an item as covered by deleting it from the list of items remaining
@@ -231,10 +266,11 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                     item,
                     above,
                     below,
-                    color,
+                    wants_color,
+                    ..
                 }) => {
-                    // Ignore the node if it has not been assigned a color.
-                    if color.is_some() {
+                    // Ignore the node if it already has the "correct" color.
+                    if !wants_color {
                         if let Some(above) = above {
                             self.instance_mut(above).below = below;
                         } else {
@@ -269,6 +305,9 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
         self.item_mut(right_ix).left = ix;
 
         // Unhide all options containing `item`, from bottom to top.
+        // todo: we can unhide the nodes from top to bottom, as noted by Knuth
+        //       in his DLX2 program. See if this leads to any decrease in
+        //       running time.
         while let Some(ix) = node_ix {
             self.unhide(ix);
             node_ix = self.instance(ix).below;
@@ -298,10 +337,11 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                     item,
                     above,
                     below,
-                    color,
+                    wants_color,
+                    ..
                 }) => {
-                    // Ignore the node if it has not been assigned a color.
-                    if color.is_some() {
+                    // Ignore the node if we know that it has the correct color.
+                    if !wants_color {
                         // Reinsert `inst` into its vertical list.
                         // SAFETY: `inst` is not a spacer, so `cur_ix > 0`.
                         let wrapped_ix = Some(InstIndex::new(cur_ix));
@@ -325,14 +365,17 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
         }
     }
 
-    /// [Covers](`Self::cover`) the item of an option, if it is primary. Otherwise
-    /// the given node has a color control, and we [purify](`Self::purify`) it
-    /// to remove all options with conflicting colors from the relevant vertical
-    /// lists.
+    /// [Covers](`Self::cover`) the item of an option, if it has no color
+    /// preference. Otherwise the given node has a color control, and we
+    /// [purify](`Self::purify`) it to remove all options with conflicting
+    /// colors from the relevant vertical lists.
     fn commit(&mut self, ix: InstIndex) {
         let inst = self.instance(ix);
         if let Some(color) = inst.color {
-            self.purify(ix, color);
+            // Don't purify a vertical list that has already been culled.
+            if !inst.wants_color {
+                self.purify(ix, color);
+            }
         } else {
             self.cover(inst.item);
         }
@@ -341,8 +384,9 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
     /// Removes all options that are incompatible with the color constraint
     /// imposed by the given secondary item instance (if it were present in a
     /// solution). The items of all compatible options in the relevant vertical
-    /// list temporarily have their color removed to prevent them from being
-    /// repeatedly purified (because they already have the "correct" color).
+    /// list temporarily have their `wants_color` field set to `true` in order
+    /// to prevent them from being repeatedly purified (because they already
+    /// have the "correct" color).
     fn purify(&mut self, ix: InstIndex, color: C) {
         // We cannot use `debug_assert_eq` because `C` need not implement `Debug`.
         debug_assert!(
@@ -351,14 +395,14 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
         );
         // Hide all options that contain the given item but with a color other
         // than `color`, from top to bottom. If an item in the vertical list
-        // has the "correct" color, then replace it by a sentinel `None` to
-        // avoid its repurification in the future.
+        // has the "correct" color, then mark it to avoid its repurification
+        // in the future.
         let item_ix = self.instance(ix).item;
         let mut cur_ix = self.item(item_ix).first_option;
         while let Some(ix) = cur_ix {
             let inst = self.instance_mut(ix);
             if inst.color == Some(color) {
-                inst.color = None;
+                inst.wants_color = true; // $\texttt{COLOR}(q)\gets-1$.
             } else {
                 self.hide(ix);
             }
@@ -374,7 +418,11 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
     fn uncommit(&mut self, ix: InstIndex) {
         let inst = self.instance(ix);
         if let Some(color) = inst.color {
-            self.unpurify(ix, color);
+            // Don't unpurify an item that's already known to have the
+            // correct color.
+            if !inst.wants_color {
+                self.unpurify(ix, color);
+            }
         } else {
             self.uncover(inst.item);
         }
@@ -392,14 +440,15 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
             "item instance has unexpected or missing color control"
         );
         // Unhide all options that contain the given item, from bottom to top.
-        // If a node in the vertical list has its color field set to `None`,
-        // we need to reset it to the right color control.
+        // If a node in the vertical list has its `wants_color` field set to
+        // `true`, we need to reset it.
         let item_ix = self.instance(ix).item;
         let mut cur_ix = self.item(item_ix).last_option;
         while let Some(ix) = cur_ix {
             let inst = self.instance_mut(ix);
-            if inst.color.is_none() {
-                inst.color = Some(color);
+            if inst.wants_color {
+                // $\texttt{COLOR}(q)<0$ in Knuth's description.
+                inst.wants_color = false; // $\texttt{COLOR}(q)\gets c`.
             } else {
                 self.unhide(ix);
             }
@@ -413,7 +462,7 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
     /// broken by using the position of $i$ within the horizontal list of
     /// active primary items.
     ///
-    /// Returns `None` if all items have been covered.
+    /// Returns `None` if all primary items have been covered.
     fn choose_item<H>(&self, heuristic: H) -> Option<ItemIndex>
     where
         H: Fn(&Item<'i, I>) -> usize,
@@ -443,7 +492,7 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
     ///
     /// This function is part of step C5 in Knuth's Algorithm C.
     fn commit_items_of(&mut self, ix: InstIndex) {
-        // Cover the items cyclically from left to right.
+        // Commit the items cyclically from left to right.
         let mut cur_ix = ix.increment();
         while cur_ix != ix {
             cur_ix = match self.node(cur_ix.get()) {
@@ -464,18 +513,18 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
     ///
     /// This function is part of step C6 in Knuth's Algorithm C.
     fn uncommit_items_of(&mut self, ix: InstIndex) {
-        // Uncover the items cyclically, in the opposite order as `cover_items_of`.
+        // Uncommit the items cyclically, in the opposite order as `commit_items_of`.
         // As in `Self::unhide`, we must use raw node indices in case we visit
         // the first spacer.
         let ix = ix.get();
         let mut cur_ix = ix - 1;
         while cur_ix != ix {
-            cur_ix = match &self.nodes[cur_ix] {
+            cur_ix = match self.node(cur_ix) {
                 Node::Spacer { last_in_next, .. } => last_in_next
                     .expect("spacer should have a last_in_next link")
                     .get(),
-                Node::Instance(Instance { item, .. }) => {
-                    self.uncover(*item);
+                Node::Instance(_) => {
+                    self.uncommit(InstIndex::new(cur_ix));
                     cur_ix - 1
                 }
             }
@@ -504,6 +553,9 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
                 // to be bound by `Ord` nor `Hash`, so this operation needs $O(N)$
                 // steps per item.
                 debug_assert!(
+                    // We cannot use `primary[..prev_ix].contains(label)` since
+                    // `prev_ix` is out of bounds when the current item is
+                    // secondary.
                     !primary.iter().take(prev_ix).any(|o| o == label),
                     "item at index {cur_ix:?} is already in the primary item list"
                 );
@@ -522,8 +574,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
         if !secondary.is_empty() {
             // 1. Link the first secondary item to the secondary header.
             items[n_1 + 1].left = ItemIndex::new(n + 1);
-            // todo: do we need this?
-            // items[n].right = ItemIndex::new(n_1 + 1);
+            // `items[n].right` is already $n_1+1$ by construction.
         }
         // 2. Link the last primary item to the primary header.
         items[n_1].right = PRIMARY_HEADER;
@@ -538,13 +589,59 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
         }
     }
 
-    fn add_option<'s, P, S>(&'s mut self, primary: P, secondary: S)
+    fn add_option<P, S>(&mut self, primary: P, secondary: S)
     where
-        I: 's,
-        P: AsRef<[&'s I]>,
-        S: AsRef<[(&'s I, C)]>,
+        P: AsRef<[I]>,
+        S: AsRef<[(I, Option<C>)]>,
     {
-        todo!()
+        let primary = primary.as_ref();
+        let secondary = secondary.as_ref();
+        // We will create one item instance per item in `primary` and `secondary`,
+        // followed by a trailing spacer node.
+        self.nodes.reserve(primary.len() + secondary.len() + 1);
+        let first_inst_ix = InstIndex::new(self.nodes.len());
+        let mut inst_ix = first_inst_ix;
+        for (ix, label) in primary.iter().enumerate() {
+            // Fail if an item label appears more than once in the option.
+            debug_assert!(
+                !primary[..ix].contains(label),
+                "primary item at index {ix} can only appear once in the option"
+            );
+            let item_ix = self.find_item(label).unwrap_or_else(|| {
+                panic!("primary item at index {ix} must be in the problem's item list");
+            });
+            // Append the new node to the vertical list of `item`.
+            self.append_inst(item_ix, inst_ix, None);
+            inst_ix = inst_ix.increment();
+        }
+        for (ix, inst) in secondary.iter().enumerate() {
+            // Fail if an item label appears more than one in the option.
+            let (label, color) = inst;
+            debug_assert!(
+                !primary.contains(label) && !secondary[..ix].contains(inst),
+                "secondary item at index {ix} can only appear once in the option"
+            );
+            let item_ix = self.find_item(label).unwrap_or_else(|| {
+                panic!("secondary item at index {ix} must be in the problem's item list");
+            });
+            // Append the new node to the vertical list of `item`.
+            self.append_inst(item_ix, inst_ix, *color);
+            inst_ix = inst_ix.increment();
+        }
+        assert_ne!(first_inst_ix, inst_ix, "option must have at least one item");
+        // Link the previous spacer to the last node in the option.
+        // The first spacer cannot be referenced directly; see `InstIndex`.
+        let prev_spacer = &mut self.nodes[first_inst_ix.get() - 1];
+        if let Node::Spacer { last_in_next, .. } = prev_spacer {
+            *last_in_next = inst_ix.decrement();
+        } else {
+            panic!("the record before the first node should be a spacer");
+        }
+        // Create the next spacer, and link it to the first node in the option.
+        self.nodes.push(Node::Spacer {
+            first_in_prev: Some(first_inst_ix),
+            last_in_next: None,
+        })
     }
 
     fn solve<F>(mut self, mut visit: F)
@@ -581,9 +678,9 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
                         break;
                     }
                 } else {
-                    // C2: All items have been covered. Visit the solution given
-                    //     by the nodes in `self.pointers` and leave the current
-                    //     recursion level.
+                    // C2: All primary items have been covered. Visit the solution
+                    //     given by the nodes in `self.pointers` and leave the
+                    //     current recursion level.
                     if self.is_valid_solution() {
                         visit(Solution {
                             solver: &mut self,
@@ -630,15 +727,14 @@ impl<'i, I: Eq, C> Solver<'i, I, C> {
     /// secondary options are already covered by options containing at least
     /// one primary item. This happens if the vertical lists of all active
     /// secondary items are empty, which in turn occurs as the result of
-    /// hide operations during the covering of items $\neq i$ in step X5
+    /// hide operations during the covering of items $\neq i$ in step C5
     /// of Algorithm C.
     fn is_valid_solution(&self) -> bool {
-        // todo: update the following comment.
-        // Of course, an option can be purely secondary only if the problem
-        // has secondary items. These occupy the last $N_2$ positions of
-        // the `self.items` arena.
-        // Access the one at the end and traverse the horizontal list of active
-        // secondary items.
+        // return true;
+        // Traverse the horizontal list of active secondary items, checking
+        // that their corresponding vertical lists are empty (and thus have
+        // already been dealt with by primary covering). Exercise 7.2.2.1.19
+        // of TAOCP explains this procedure in more detail.
         let secondary_head_ix = ItemIndex::new(self.items.len() - 1);
         let secondary_head = self.secondary_head();
         let first_active_secondary_ix = secondary_head.right;
@@ -689,7 +785,7 @@ impl<'i, I: Eq, C> Solver<'i, I, C> {
 
     /// Search through the table of primary and secondary items to find
     /// the node with the given label, if any.
-    fn find_item(&self, label: &'i I) -> Option<ItemIndex> {
+    fn find_item(&self, label: &I) -> Option<ItemIndex> {
         // Remember that `T` is not bound by `Ord` nor `Hash`, so we need to
         // search through the whole `items` list in order to find the node
         // corresponding to `label` in the worst case.
@@ -855,9 +951,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn new_exact_cover_without_primary_panics() {
-        let _: DlSolver<u8, ()> = DlSolver::new(&[], &[1, 2, 3]);
+        // We implement the "second death" method to support purely secondary
+        // options; see `DlSolver::is_valid_solution` for details. Of course,
+        // Algorithm C visits no solutions because they are all purely secondary.
+        let mut solver = DlSolver::new(&[], &[1, 2, 3]);
+        solver.add_option([], [(1, None)]);
+        solver.add_option([], [(2, Some('A'))]);
+        solver.solve(|_| panic!("found purely secondary solution"));
     }
 
     #[test]
@@ -870,17 +971,42 @@ mod tests {
     }
 
     #[test]
+    fn toy_problem_with_colors() {
+        // Example problem taken from Section 7.2.2.1 of TAOCP.
+        let primary = ['p', 'q', 'r'];
+        let secondary = ['x', 'y'];
+        let mut solver = DlSolver::new(&primary, &secondary);
+        solver.add_option(['p', 'q'], [('x', None), ('y', Some('A'))]);
+        solver.add_option(['p', 'r'], [('x', Some('A')), ('y', None)]);
+        solver.add_option(['p'], [('x', Some('B'))]);
+        solver.add_option(['q'], [('x', Some('A'))]);
+        solver.add_option(['r'], [('y', Some('B'))]);
+
+        let mut count = 0;
+        let mut option = Vec::new();
+        solver.solve(|mut solution| {
+            assert!(solution.next(&mut option));
+            assert_eq!(option, &[&'q', &'x']); // x:A
+            assert!(solution.next(&mut option));
+            assert_eq!(option, &[&'p', &'r', &'x', &'y']); // x:A y:A
+            assert!(!solution.next(&mut option));
+            count += 1;
+        });
+        assert_eq!(count, 1);
+    }
+
+    #[test]
     fn skips_solutions_with_purely_secondary_options() {
-        // Example problem taken from Exercise 7.2.2.1.19 of TAOCP.
+        // A colored variant of the problem from Exercise 7.2.2.1.19 of TAOCP.
         let primary = ['a', 'b'];
         let secondary = ['c', 'd', 'e', 'f', 'g'];
-        let mut solver = DlSolver::new(&primary, &secondary);
-        solver.add_option([], [(&'c', ()), (&'e', ())]); // purely secondary
-        solver.add_option([&'a'], [(&'d', ()), (&'g', ())]);
-        solver.add_option([&'b', &'c'], [(&'f', ())]);
-        solver.add_option([&'a'], [(&'d', ()), (&'f', ())]);
-        solver.add_option([&'b'], [(&'g', ())]);
-        solver.add_option([], [(&'d', ()), (&'e', ()), (&'g', ())]); // purely secondary
+        let mut solver: DlSolver<char, ()> = DlSolver::new(&primary, &secondary);
+        solver.add_option([], [('c', None), ('e', None)]); // purely secondary
+        solver.add_option(['a'], [('d', None), ('g', None)]);
+        solver.add_option(['b'], [('c', None), ('f', None)]);
+        solver.add_option(['a'], [('d', None), ('f', None)]);
+        solver.add_option(['b'], [('g', None)]);
+        solver.add_option([], [('d', None), ('e', None), ('g', None)]); // purely secondary
 
         let mut count = 0;
         let mut option = Vec::new();
@@ -892,6 +1018,8 @@ mod tests {
             assert!(!solution.next(&mut option));
             count += 1;
         });
+        // Note that 'a d g', 'b g' is not a solution, because it does not
+        // intersect the purely secondary option 'c e'.
         assert_eq!(count, 1);
     }
 }
