@@ -48,8 +48,8 @@ fn main() {
         let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
         for j in first_slot_range {
             let k = i + j + 1;
-            let primary = [&Item::Number(i), &Item::Slot(j), &Item::Slot(k)];
-            solver.add_option(primary, []);
+            let items = [Item::Number(i), Item::Slot(j), Item::Slot(k)];
+            solver.add_option(items, []);
         }
     }
 
