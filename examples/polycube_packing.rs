@@ -159,8 +159,8 @@ fn main() {
     // $(x_0,y_0,z_0)$ such that the piece $P'=P+(x_0,y_0,z_0)$ lies within the
     // $l\times m\times n$ cuboid cornered at the origin, define an option whose
     // primary items are the cells of $P'$. We break symmetry by constraining
-    // the closest cubie of $P'$ to be at $L_\infty$ distance $\le2$ from the
-    // origin.
+    // a particular cubie of the first pentacube to be at $L_\infty$ distance
+    // $\le2$ from the origin.
     let placements = Y.base_placements();
     let mut first = true;
     for placement in placements {
