@@ -57,10 +57,6 @@ pub(crate) struct Item<'l, L> {
     /// - `len == 0` if and only if `first_option` and `last_option` are [`None`].
     /// - `len == 1` if and only if `first_option == last_option`.
     len: usize,
-    /*/// The color currently assigned to this item, if any.
-    ///
-    /// This field corresponds to the `COLOR` member in Knuth's data structure.
-    color: Option<C>,*/
 }
 
 impl<'l, L> Item<'l, L> {
@@ -73,7 +69,6 @@ impl<'l, L> Item<'l, L> {
             first_option: None,
             last_option: None,
             len: 0,
-            // color: None,
         }
     }
 
@@ -87,9 +82,6 @@ impl<'l, L> Item<'l, L> {
             first_option: None,
             last_option: None,
             len: 0,
-            /*// We don't need to initialize the color field of an item,
-            // since it is never examined except when visiting a solution.
-            color: None,*/
         }
     }
 }
@@ -1023,7 +1015,7 @@ mod tests {
             assert!(!solution.next(&mut option));
             count += 1;
         });
-        // Note that 'a d g', 'b g' is not a solution, because it does not
+        // Note that 'a d g', 'b g' is not a valid solution, because it does not
         // intersect the purely secondary option 'c e'.
         assert_eq!(count, 1);
     }
