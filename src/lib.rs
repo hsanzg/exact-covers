@@ -88,13 +88,10 @@ pub use dl::Solver as DlSolver;
 /// # Notes
 ///
 /// The solver does not visit any solution containing a purely secondary option
-/// (that is, an option that uses no primary items) whose items have no explicit
-/// color assignments. (As the documentation of method [`add_option`] mentions,
-/// any secondary item of an option with color control [`None`] is _implicitly_
-/// assigned a unique color.) However, the set of items covered by the options
-/// in any visited solution intersects every purely secondary option with no
-/// explicitly colored items. This strategy is a generalized version of the
-/// "second death" method from exercise 7.2.2.1–19 of TAOCP.
+/// (that is, an option that uses no primary items). However, the set of items
+/// covered by the options in any visited solution intersects every purely
+/// secondary option. This strategy is a generalized version of the "second
+/// death" method from exercise 7.2.2.1–19 of TAOCP to the XCC problem.
 ///
 /// This trait is sealed, meaning that it cannot be implemented outside of the
 /// `exact-covers` crate.

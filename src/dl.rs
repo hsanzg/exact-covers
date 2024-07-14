@@ -57,7 +57,13 @@ pub(crate) struct Item<'l, L> {
     /// - `len == 0` if and only if `first_option` and `last_option` are [`None`].
     /// - `len == 1` if and only if `first_option == last_option`.
     len: usize,
+    /// Whether this item is secondary and appears in a chosen option that
+    /// specifies its color explicitly. This field is true if and only if
+    /// $\text{COLOR}(i)\ne0$ in Knuth's Algorithm C, and it helps us to
+    /// determine if a solution intersects every purely secondary option
+    /// in method [`is_valid_solution`].
     ///
+    /// [`is_valid_solution`]: Solver::is_valid_solution
     purified: bool,
 }
 
@@ -132,11 +138,12 @@ pub(crate) struct Instance<C> {
     ///
     /// If `item` is a primary item, then this variable is [`None`].
     color: Option<C>,
-    /// Whether this instance is a secondary item that wants the chosen color
-    /// in another purified secondary item. The purpose of this field, which
-    /// is true if and only if `COLOR(x)=-1` in Knuth's Algorithm C, is to
-    /// avoid repeatedly purifying an item; see methods [`purify`] and
-    /// [`unpurify`] for details.
+    /// If this instance appears in the vertical list of a purified secondary
+    /// item, this field indicates whether the instance wants the color chosen
+    /// for the item or not. The purpose of this field, which is true if and
+    /// only if $\text{COLOR}(x)=-1$ in Knuth's Algorithm C, is to avoid
+    /// repeatedly purifying an item; see methods [`purify`] and [`unpurify`]
+    /// for details.
     ///
     /// [`purify`]: Solver::purify
     /// [`unpurify`]: Solver::unpurify
@@ -282,7 +289,6 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                         }
                         // Update the length of the vertical list.
                         self.item_mut(item).len -= 1;
-                        eprintln!("hide len of {item:?} is {} (dec)", self.item_mut(item).len);
                     }
                     // Continue to go rightwards.
                     cur_ix.increment()
@@ -357,10 +363,6 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                         }
                         // Update the length of the vertical list.
                         self.item_mut(item).len += 1;
-                        eprintln!(
-                            "unhide len of {item:?} is {} (inc)",
-                            self.item_mut(item).len
-                        );
                     }
                     // Continue to go leftwards.
                     cur_ix - 1
@@ -397,7 +399,6 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
             self.instance(ix).color == Some(color),
             "item instance has unexpected or missing color control"
         );
-        eprintln!("purifying {ix:?}");
         let item_ix = self.instance(ix).item;
         let item = self.item_mut(item_ix);
         item.purified = true;
@@ -446,7 +447,6 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
             self.instance(ix).color == Some(color),
             "item instance has unexpected or missing color control"
         );
-        eprintln!("unpurifying {ix:?}");
         let item_ix = self.instance(ix).item;
         let item = self.item_mut(item_ix);
         item.purified = false;
@@ -733,11 +733,11 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
 impl<'i, I: Eq, C> Solver<'i, I, C> {
     /// Returns whether [`solve`] should visit the current solution.
     ///
-    /// A solution is valid only if the (secondary) items with no explicit color
-    /// controls in the purely secondary options are already covered by options
-    /// containing at least one primary item. This happens if the vertical lists
-    /// of all active and nonpurified secondary items are empty, which in turn
-    /// occurs as the result of [`hide`] operations during the covering of items
+    /// A solution is valid only if the (secondary) items in the purely
+    /// secondary options are already covered by options containing at least
+    /// one primary item. This happens if the vertical lists of all active
+    /// nonpurified secondary items are empty, which in turn occurs as
+    /// the result of [`hide`] operations during the commiting of items
     /// $\ne i$ in step C5 of Algorithm C.
     ///
     /// [`solve`]: crate::Solver::solve
@@ -963,14 +963,14 @@ mod tests {
     }
 
     #[test]
-    fn new_exact_cover_without_primary_panics() {
+    fn new_exact_cover_without_primary_has_no_solution() {
         // We implement the "second death" method to support purely secondary
         // options; see `DlSolver::is_valid_solution` for details. Of course,
         // Algorithm C visits no solutions because they are all purely secondary.
         let mut solver = DlSolver::new(&[], &[1, 2, 3]);
         solver.add_option([], [(1, None)]);
         solver.add_option([], [(2, Some('A'))]);
-        solver.solve(|_| panic!("found purely secondary solution"));
+        solver.solve(|_| panic!("found solution with purely secondary option"));
     }
 
     #[test]
@@ -1036,23 +1036,33 @@ mod tests {
     }
 
     #[test]
-    fn does_not_skip_solutions_with_purely_secondary_options_whose_items_are_not_all_implicitly_colored(
-    ) {
-        let mut solver = DlSolver::new(&['a'], &['b']);
-        solver.add_option(['a'], []);
-        // solver.add_option([], [('b', None)]); // skipped
-        solver.add_option([], [('b', Some(1))]); // not skipped
-
+    fn solutions_intersect_item_sets_of_purely_secondary_options() {
+        let mut solver = DlSolver::new(&['a'], &['b', 'c']);
+        solver.add_option(['a'], [('b', Some(1)), ('c', Some(2))]);
+        solver.add_option([], [('b', Some(1))]);
+        solver.add_option([], [('b', Some(2))]);
+        solver.add_option([], [('c', Some(3))]);
+        // The three purely secondary options do not appear in any solution. The
+        // only solution to the XCC problem consists of option $a b:1 c:2$ alone,
+        // because it intersects every purely secondary option.
         let mut count = 0;
         let mut option = Vec::new();
         solver.solve(|mut solution| {
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'a']);
-            assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'b']);
+            assert_eq!(option, &[&'a', &'b', &'c']);
             assert!(!solution.next(&mut option));
             count += 1;
         });
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn skips_solutions_that_do_not_intersect_a_purely_secondary_option() {
+        let mut solver = DlSolver::new(&['a'], &['b']);
+        solver.add_option(['a'], []);
+        solver.add_option([], [('b', Some(1))]);
+        // Even if option $a$ covers every primary item exactly once, it does
+        // not intersect the purely secondary option $b$.
+        solver.solve(|_| panic!("found solution with purely secondary option"));
     }
 }
