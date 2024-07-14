@@ -70,7 +70,7 @@ impl Polycube {
     /// the polycube.
     ///
     /// D. E. Knuth called these the _base placements_ of a polycube in
-    /// exercise 7.2.2.1.266 of [_The Art of Computer Programming_ **4B**,
+    /// exercise 7.2.2.1–266 of [_The Art of Computer Programming_ **4B**,
     /// Part 2][taocp] (Addison-Wesley, 2022).
     ///
     /// [taocp]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
