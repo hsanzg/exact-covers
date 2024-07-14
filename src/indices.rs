@@ -81,6 +81,16 @@ impl InstIndex {
         })
     }
 
+    /// Creates a new index, without checking that `ix` is nonzero.
+    ///
+    /// # Safety
+    ///
+    /// `ix` must be positive.
+    #[must_use]
+    pub const unsafe fn new_unchecked(ix: usize) -> Self {
+        Self(NonZeroUsize::new_unchecked(ix))
+    }
+
     /// Returns the index value as a primitive type.
     #[must_use]
     pub const fn get(self) -> usize {

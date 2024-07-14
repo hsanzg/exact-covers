@@ -534,7 +534,8 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                     .expect("spacer should have a last_in_next link")
                     .get(),
                 Node::Instance(_) => {
-                    self.uncommit(InstIndex::new(cur_ix));
+                    // SAFETY: `node` is not the first spacer.
+                    self.uncommit(unsafe { InstIndex::new_unchecked(cur_ix) });
                     cur_ix - 1
                 }
             }
