@@ -88,9 +88,13 @@ pub use dl::Solver as DlSolver;
 /// # Notes
 ///
 /// The solver does not visit any solution containing a purely secondary option
-/// (that is, an option that uses no primary items). However, the set of items
-/// covered by the options in any visited solution intersects every purely
-/// secondary option.
+/// (that is, an option that uses no primary items) whose items have no explicit
+/// color assignments. (As the documentation of method [`add_option`] mentions,
+/// any secondary item of an option with color control [`None`] is _implicitly_
+/// assigned a unique color.) However, the set of items covered by the options
+/// in any visited solution intersects every purely secondary option with no
+/// explicitly colored items. This strategy is a generalized version of the
+/// "second death" method from exercise 7.2.2.1–19 of TAOCP.
 ///
 /// This trait is sealed, meaning that it cannot be implemented outside of the
 /// `exact-covers` crate.
@@ -136,6 +140,7 @@ pub use dl::Solver as DlSolver;
 /// ```
 ///
 /// [solutions]: `Solution`
+/// [`add_option`]: Self::add_option
 /// [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
     /// Creates a solver for an XCC problem on the given primary and secondary
@@ -145,6 +150,12 @@ pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
     fn new(primary: &'i [I], secondary: &'i [I]) -> Self;
 
     /// Appends an option to the XCC problem.
+    ///
+    /// The meaning of a pair $(i,c)$ in the list of secondary items depends on
+    /// the value of $c$: If $c$ is `Some(c')` for some `c'`, then the secondary
+    /// item $i$ is assigned color `c'`; otherwise $i$ is implicitly assigned
+    /// a unique color, which does not match the color of the item in any other
+    /// option.
     ///
     /// Once all options have been specified, use [`Self::solve`] to visit all
     /// solutions to the problem.

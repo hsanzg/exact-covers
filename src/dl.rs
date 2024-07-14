@@ -57,6 +57,8 @@ pub(crate) struct Item<'l, L> {
     /// - `len == 0` if and only if `first_option` and `last_option` are [`None`].
     /// - `len == 1` if and only if `first_option == last_option`.
     len: usize,
+    ///
+    purified: bool,
 }
 
 impl<'l, L> Item<'l, L> {
@@ -69,6 +71,7 @@ impl<'l, L> Item<'l, L> {
             first_option: None,
             last_option: None,
             len: 0,
+            purified: false,
         }
     }
 
@@ -82,6 +85,7 @@ impl<'l, L> Item<'l, L> {
             first_option: None,
             last_option: None,
             len: 0,
+            purified: false,
         }
     }
 }
@@ -131,8 +135,8 @@ pub(crate) struct Instance<C> {
     /// Whether this instance is a secondary item that wants the chosen color
     /// in another purified secondary item. The purpose of this field, which
     /// is true if and only if `COLOR(x)=-1` in Knuth's Algorithm C, is to
-    /// avoid repeatedly purifying an item; see methods [`purify`]
-    /// and [`unpurify`] for details.
+    /// avoid repeatedly purifying an item; see methods [`purify`] and
+    /// [`unpurify`] for details.
     ///
     /// [`purify`]: Solver::purify
     /// [`unpurify`]: Solver::unpurify
@@ -278,6 +282,7 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                         }
                         // Update the length of the vertical list.
                         self.item_mut(item).len -= 1;
+                        eprintln!("hide len of {item:?} is {} (dec)", self.item_mut(item).len);
                     }
                     // Continue to go rightwards.
                     cur_ix.increment()
@@ -299,10 +304,10 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
         self.item_mut(left_ix).right = ix;
         self.item_mut(right_ix).left = ix;
 
-        // Unhide all options containing `item`, from bottom to top.
-        // todo: we can unhide the nodes from top to bottom, as noted by Knuth
-        //       in his DLX2 program. See if this leads to any decrease in
-        //       running time.
+        // Unhide all options containing `item`, from top to bottom. This order
+        // may appear to be incorrect at first glance, because covering is also
+        // done from top to bottom. But the answer to exercise 7.2.2.1–2 of
+        // TAOCP shows that it is completely trustworthy.
         while let Some(ix) = node_ix {
             self.unhide(ix);
             node_ix = self.instance(ix).below;
@@ -352,6 +357,10 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
                         }
                         // Update the length of the vertical list.
                         self.item_mut(item).len += 1;
+                        eprintln!(
+                            "unhide len of {item:?} is {} (inc)",
+                            self.item_mut(item).len
+                        );
                     }
                     // Continue to go leftwards.
                     cur_ix - 1
@@ -388,12 +397,15 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
             self.instance(ix).color == Some(color),
             "item instance has unexpected or missing color control"
         );
+        eprintln!("purifying {ix:?}");
+        let item_ix = self.instance(ix).item;
+        let item = self.item_mut(item_ix);
+        item.purified = true;
         // Hide all options that contain the given item but with a color other
         // than `color`, from top to bottom. If an item in the vertical list
         // has the "correct" color, then mark it to avoid its repurification
         // in the future.
-        let item_ix = self.instance(ix).item;
-        let mut cur_ix = self.item(item_ix).first_option;
+        let mut cur_ix = item.first_option;
         while let Some(ix) = cur_ix {
             let inst = self.instance_mut(ix);
             if inst.color == Some(color) {
@@ -434,11 +446,14 @@ impl<'i, I: Eq, C: Eq + Copy> Solver<'i, I, C> {
             self.instance(ix).color == Some(color),
             "item instance has unexpected or missing color control"
         );
+        eprintln!("unpurifying {ix:?}");
+        let item_ix = self.instance(ix).item;
+        let item = self.item_mut(item_ix);
+        item.purified = false;
         // Unhide all options that contain the given item, from bottom to top.
         // If a node in the vertical list has its `wants_color` field set to
         // `true`, we need to reset it.
-        let item_ix = self.instance(ix).item;
-        let mut cur_ix = self.item(item_ix).last_option;
+        let mut cur_ix = item.last_option;
         while let Some(ix) = cur_ix {
             let inst = self.instance_mut(ix);
             if inst.wants_color {
@@ -718,19 +733,19 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
 impl<'i, I: Eq, C> Solver<'i, I, C> {
     /// Returns whether [`solve`] should visit the current solution.
     ///
-    /// A solution is valid only if the (secondary) items in the purely
-    /// secondary options are already covered by options containing at least
-    /// one primary item. This happens if the vertical lists of all active
-    /// secondary items are empty, which in turn occurs as the result of
-    /// hide operations during the covering of items $\neq i$ in step C5
-    /// of Algorithm C.
+    /// A solution is valid only if the (secondary) items with no explicit color
+    /// controls in the purely secondary options are already covered by options
+    /// containing at least one primary item. This happens if the vertical lists
+    /// of all active and nonpurified secondary items are empty, which in turn
+    /// occurs as the result of [`hide`] operations during the covering of items
+    /// $\ne i$ in step C5 of Algorithm C.
     ///
     /// [`solve`]: crate::Solver::solve
+    /// [`hide`]: Self::hide
     fn is_valid_solution(&self) -> bool {
-        // return true;
         // Traverse the horizontal list of active secondary items, checking
         // that their corresponding vertical lists are empty (and thus have
-        // already been dealt with by primary covering). Exercise 7.2.2.1.19
+        // already been dealt with by primary covering). Exercise 7.2.2.1–19
         // of TAOCP explains this procedure in more detail.
         let secondary_head_ix = ItemIndex::new(self.items.len() - 1);
         let secondary_head = self.secondary_head();
@@ -738,7 +753,7 @@ impl<'i, I: Eq, C> Solver<'i, I, C> {
         let mut cur_ix = first_active_secondary_ix;
         while cur_ix != secondary_head_ix {
             let item = self.item(cur_ix);
-            if item.len > 0 {
+            if !item.purified && item.len > 0 {
                 return false; // Skip the solution.
             }
             cur_ix = item.right;
@@ -994,7 +1009,7 @@ mod tests {
 
     #[test]
     fn skips_solutions_with_purely_secondary_options() {
-        // A colored variant of the problem from Exercise 7.2.2.1.19 of TAOCP.
+        // A colored variant of the problem from Exercise 7.2.2.1–19 of TAOCP.
         let primary = ['a', 'b'];
         let secondary = ['c', 'd', 'e', 'f', 'g'];
         let mut solver: DlSolver<char, ()> = DlSolver::new(&primary, &secondary);
@@ -1017,6 +1032,27 @@ mod tests {
         });
         // Note that 'a d g', 'b g' is not a valid solution, because it does not
         // intersect the purely secondary option 'c e'.
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn does_not_skip_solutions_with_purely_secondary_options_whose_items_are_not_all_implicitly_colored(
+    ) {
+        let mut solver = DlSolver::new(&['a'], &['b']);
+        solver.add_option(['a'], []);
+        // solver.add_option([], [('b', None)]); // skipped
+        solver.add_option([], [('b', Some(1))]); // not skipped
+
+        let mut count = 0;
+        let mut option = Vec::new();
+        solver.solve(|mut solution| {
+            assert!(solution.next(&mut option));
+            assert_eq!(option, &[&'a']);
+            assert!(solution.next(&mut option));
+            assert_eq!(option, &[&'b']);
+            assert!(!solution.next(&mut option));
+            count += 1;
+        });
         assert_eq!(count, 1);
     }
 }
