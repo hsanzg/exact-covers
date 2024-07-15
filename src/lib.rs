@@ -139,6 +139,11 @@ pub use dl::Solver as DlSolver;
 /// [solutions]: `Solution`
 /// [`add_option`]: Self::add_option
 /// [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
+// todo: Hopefully some day we will be able to specify the `()` default type
+//       parameter for `C`, which e.g. would allow us to remove the annoying
+//       type annotation for `solver` above. As it stands, however, type inference
+//       in Rust does not use type defaults (see https://github.com/rust-lang/rust/issues/36980#issuecomment-251726254,
+//       https://github.com/rust-lang/reference/issues/636 and https://internals.rust-lang.org/t/interaction-of-user-defined-and-integral-fallbacks-with-inference/2496).
 pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
     /// Creates a solver for an XCC problem on the given primary and secondary
     /// items.

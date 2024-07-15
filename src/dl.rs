@@ -1044,8 +1044,8 @@ mod tests {
         solver.add_option([], [('b', Some(2))]);
         solver.add_option([], [('c', Some(3))]);
         // The three purely secondary options do not appear in any solution. The
-        // only solution to the XCC problem consists of option $a b:1 c:2$ alone,
-        // because it intersects every purely secondary option.
+        // only solution to the XCC problem consists of option $'a\\;b:1\\;c:2'$
+        // alone, because it intersects every purely secondary option.
         let mut count = 0;
         let mut option = Vec::new();
         solver.solve(|mut solution| {
@@ -1062,8 +1062,8 @@ mod tests {
         let mut solver = DlSolver::new(&['a'], &['b']);
         solver.add_option(['a'], []);
         solver.add_option([], [('b', Some(1))]);
-        // Even if option $a$ covers every primary item exactly once, it does
-        // not intersect the purely secondary option $b$.
+        // Even if option $'a'$ covers every primary item exactly once, it does
+        // not intersect the purely secondary option $'b'$.
         solver.solve(|_| panic!("found solution with purely secondary option"));
     }
 }
