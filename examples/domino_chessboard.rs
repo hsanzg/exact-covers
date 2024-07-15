@@ -4,9 +4,9 @@
 /// placements of a domino.
 ///
 /// P. W. Kasteleyn obtained a closed formula for the number of domino coverings
-/// of an $m\times n$ rectangle [Physica **27** (1961), pp. 1209–1225]. Interested
-/// readers can learn more by working out exercise 7.51 in the second edition
-/// of the book [_Concrete Mathematics_] (Addison–Wesley, 1994) by R. Graham,
+/// of an $m\times n$ rectangle \[_Physica_ **27** (1961), pp. 1209–1225].
+/// Interested readers can learn more by working out exercise 7.51 in the second
+/// edition of the book _Concrete Mathematics_ (Addison–Wesley, 1994) by R. Graham,
 /// D. E. Knuth and O. Patashnik.
 use exact_covers::{DlSolver, Solver};
 
@@ -38,6 +38,7 @@ fn main() {
             solver.add_option([(x0, y0), (x0 + 1, y0)], []);
         }
     }
+
     // Count the number of solutions, taking symmetry into account.
     let mut count = 0;
     solver.solve(|_| count += 2);
