@@ -46,7 +46,7 @@ data structure of P. Briggs and L. Torczon [[_ACM Letters on Programming Languag
 items that need to be covered. Knuth prepared an implementation of this
 approach, called the "dancing cells" method, using the conventions of
 Algorithm C. Numerous benchmark tests for these two XCC solvers appear
-in Section 7.2.2.3 of [_TAOCP_ **4C** (13 January 2023)][taocp4c], Pre-Fascicle
+in Section 7.2.2.3 of [_TAOCP_ **4C** (June 25, 2024)][taocp4c], Pre-Fascicle
 7A (preliminary draft), pages 64–65. To summarize the results of these
 experiments: there is no clear winner, and we don't yet know a rule for
 determining which method is best for a particular instance of XCC.
