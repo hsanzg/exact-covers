@@ -18,7 +18,7 @@ edition = "2021"
 # To build locally, run RUSTDOCFLAGS="--html-in-header misc/katex-header.html" cargo +nightly doc -Zunstable-options -Zrustdoc-scrape-examples --no-deps --document-private-items
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
-rustdoc-args = ["--examples", "--html-in-header", "misc/katex-header.html"]
+rustdoc-args = ["--html-in-header", "misc/katex-header.html"]
 
 [[example]]
 name = "langford_pairs"
