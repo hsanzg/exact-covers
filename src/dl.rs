@@ -858,7 +858,7 @@ impl<'i, I: Eq, C> Solver<'i, I, C> {
     }
 }
 
-impl<'i, I: Eq, C> crate::private::Solver<'i, I, C> for Solver<'i, I, C> {
+impl<'i, I: Eq, C: Copy> crate::private::Solver<'i, I, C> for Solver<'i, I, C> {
     fn pointer(&self, level: usize) -> Option<InstIndex> {
         self.pointers.get(level).copied()
     }
@@ -867,7 +867,7 @@ impl<'i, I: Eq, C> crate::private::Solver<'i, I, C> for Solver<'i, I, C> {
         self.pointers.len()
     }
 
-    fn option_of(&self, ix: InstIndex, result: &mut Vec<&'i I>) {
+    fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>) {
         result.clear();
         let mut cur_ix = ix;
         loop {
@@ -875,11 +875,12 @@ impl<'i, I: Eq, C> crate::private::Solver<'i, I, C> for Solver<'i, I, C> {
                 Node::Spacer { first_in_prev, .. } => {
                     first_in_prev.expect("spacer should have a first_in_prev link")
                 }
-                Node::Instance(Instance { item, .. }) => {
+                Node::Instance(Instance { item, color, .. }) => {
                     let item = self.item(*item);
                     // SAFETY: `item` is a nonheader node in the item table,
                     // so its label is initialized.
-                    result.push(unsafe { item.label.assume_init() });
+                    let label = unsafe { item.label.assume_init() };
+                    result.push((label, *color));
                     cur_ix.increment()
                 }
             };
@@ -1005,11 +1006,44 @@ mod tests {
         let mut option = Vec::new();
         solver.solve(|mut solution| {
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'q', &'x']); // x:A
+            assert_eq!(option, &[(&'q', None), (&'x', Some('A'))]);
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'p', &'r', &'x', &'y']); // x:A y:A
+            assert_eq!(
+                option,
+                &[(&'p', None), (&'r', None), (&'x', Some('A')), (&'y', None)]
+            );
             assert!(!solution.next(&mut option));
             count += 1;
+            ControlFlow::Continue(())
+        });
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn another_toy_problem_with_colors() {
+        // Example taken from Program DLX2 by D. E. Knuth, available
+        // at https://cs.stanford.edu/~knuth/programs.html.
+        let primary = ['a', 'b', 'c'];
+        let secondary = ['x', 'y'];
+        let mut solver = DlSolver::new(&primary, &secondary);
+        solver.add_option(['a', 'b'], [('x', Some(0)), ('y', Some(0))]);
+        solver.add_option(['a', 'c'], [('x', Some(1)), ('y', Some(1))]);
+        solver.add_option([], [('x', Some(0)), ('y', Some(1))]);
+        solver.add_option(['b'], [('x', Some(1))]);
+        solver.add_option(['c'], [('y', Some(1))]);
+
+        let mut count = 0;
+        let mut option = Vec::new();
+        solver.solve(|mut solution| {
+            assert!(solution.next(&mut option));
+            assert_eq!(
+                option,
+                &[(&'a', None), (&'c', None), (&'x', Some(1)), (&'y', Some(1))]
+            );
+            assert!(solution.next(&mut option));
+            assert_eq!(option, &[(&'b', None), (&'x', Some(1))]);
+            count += 1;
+            ControlFlow::Continue(())
         });
         assert_eq!(count, 1);
     }
@@ -1031,11 +1065,12 @@ mod tests {
         let mut option = Vec::new();
         solver.solve(|mut solution| {
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'a', &'d', &'g']);
+            assert_eq!(option, &[(&'a', None), (&'d', None), (&'g', None)]);
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'b', &'c', &'f']);
+            assert_eq!(option, &[(&'b', None), (&'c', None), (&'f', None)]);
             assert!(!solution.next(&mut option));
             count += 1;
+            ControlFlow::Continue(())
         });
         // Note that 'a d g', 'b g' is not a valid solution, because it does not
         // intersect the purely secondary option 'c e'.
@@ -1056,9 +1091,10 @@ mod tests {
         let mut option = Vec::new();
         solver.solve(|mut solution| {
             assert!(solution.next(&mut option));
-            assert_eq!(option, &[&'a', &'b', &'c']);
+            assert_eq!(option, &[(&'a', None), (&'b', Some(1)), (&'c', Some(2))]);
             assert!(!solution.next(&mut option));
             count += 1;
+            ControlFlow::Continue(())
         });
         assert_eq!(count, 1);
     }

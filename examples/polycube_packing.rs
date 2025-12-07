@@ -186,8 +186,8 @@ fn main() {
         print!("[");
         while solution.next(&mut polycube) {
             print!("[");
-            if let Some((&last, elements)) = polycube.split_last() {
-                for &cubie in elements {
+            if let Some(((&last, _), elements)) = polycube.split_last() {
+                for (&cubie, _) in elements {
                     print!("[{},{},{}],", cubie.0, cubie.1, cubie.2);
                 }
                 print!("[{},{},{}]", last.0, last.1, last.2);

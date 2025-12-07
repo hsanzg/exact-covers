@@ -41,7 +41,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::private::Solver<'i, I, C> for Solver {
         todo!()
     }
 
-    fn option_of(&self, ix: InstIndex, result: &mut Vec<&'i I>) {
+    fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>) {
         todo!()
     }
 }

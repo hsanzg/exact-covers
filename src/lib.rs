@@ -96,19 +96,20 @@ use std::ops::ControlFlow;
 /// This trait is sealed, meaning that it cannot be implemented outside of the
 /// `exact-covers` crate.
 ///
-/// # Example
+/// # Examples
 ///
 /// Suppose we want to cover the primary items $a,b,c,d,e,f,g$ using some of
 /// the following options:
 /// \\[
-/// 'c\\;e';\quad'a\\;d\\;g';\quad'b\\;c\\;f';\quad'a\\;d\\;f';\quad'b\\;g';\quad'd\\;e\\;g'.
+/// `c\\;e';\quad`a\\;d\\;g';\quad`b\\;c\\;f';\quad`a\\;d\\;f';\quad`b\\;g';\quad`d\\;e\\;g'.
 /// \\]
 /// (D. E. Knuth posed this toy problem at the beginning of Section 7.2.2.1
 /// in [_The Art of Computer Programming_ **4B** (2022)][taocp4b], Part 2, page 66.)
-/// The following program uses an XCC solver based on the dancing links method
+/// The following program uses an XC solver based on the dancing links method
 /// to find the unique solution $'a\\;d\\;f';\\;'b\\;g';\\;'c\\;e'$:
 ///
 /// ```
+/// use std::ops::ControlFlow;
 /// use exact_covers::{DlSolver, Solver};
 ///
 /// let items = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
@@ -127,12 +128,52 @@ use std::ops::ControlFlow;
 /// solver.solve(|mut solution| {
 ///     assert_eq!(solution.option_count(), 3);
 ///
+///     // An option is represented as a list of `(item, color)` pairs.
+///     // In this example we are not doing color-controlled covering,
+///     // so all color assignments are `None`.
 ///     assert!(solution.next(&mut option));
-///     assert_eq!(option, [&'a', &'d', &'f']);
+///     assert_eq!(option, [(&'a', None), (&'d', None), (&'f', None)]);
 ///     assert!(solution.next(&mut option));
-///     assert_eq!(option, [&'b', &'g']);
+///     assert_eq!(option, [(&'b', None), (&'g', None)]);
 ///     assert!(solution.next(&mut option));
-///     assert_eq!(option, [&'c', &'e']);
+///     assert_eq!(option, [(&'c', None), (&'e', None)]);
+///     ControlFlow::Continue(())
+/// });
+/// ```
+///
+/// Here's a slightly more interesting challenge: Given primary items $a,b,c$
+/// and secondary items $p,q$, find all subsets of options
+/// \\[
+/// `a\\;c\\;p\\;q:0'\quad`b\\;c\\;q:2'\quad`a\\;p'\quad`b\\;p:1'
+/// \\]
+/// that (i) cover every primary item exactly once, and (ii) assign at most one
+/// color to every secondary item. (The notation `A:X` means that color `X` is
+/// assigned to item `A`; when a secondary item is not followed by a colon, it
+/// is implicitly assigned a unique color which is incompatible with any other.)
+/// The following program uses an XCC solver to find the unique solution
+/// consisting of options $`a\\;p'$ and $`b\\;c\\;q:2'$:
+///
+/// ```
+/// use std::ops::ControlFlow;
+/// use exact_covers::{DlSolver, Solver};
+///
+/// let primary = ['a', 'b', 'c'];
+/// let secondary = ['p', 'q'];
+/// let mut solver: DlSolver<char, u8> = DlSolver::new(&primary, &secondary);
+/// solver.add_option(['a',      'c'], [('p', None),    ('q', Some(0))]);
+/// solver.add_option([     'b', 'c'], [                ('q', Some(2))]);
+/// solver.add_option(['a'          ], [('p', None)                   ]);
+/// solver.add_option([     'b',    ], [('p', Some(1))                ]);
+///
+/// let mut option = Vec::new();
+/// solver.solve(|mut solution| {
+///     // Notice that `color = None` if and only if `item` is primary
+///     // or was not explicitly assigned a color by `option`.
+///     assert!(solution.next(&mut option));
+///     assert_eq!(option, [(&'a', None), (&'p', None)]);
+///     assert!(solution.next(&mut option));
+///     assert_eq!(option, [(&'b', None), (&'c', None), (&'q', Some(2))]);
+///     ControlFlow::Continue(())
 /// });
 /// ```
 ///
@@ -156,7 +197,7 @@ pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
     /// The meaning of a pair $(i,c)$ in the list of secondary items depends on
     /// the value of $c$: If $c$ is `Some(c')` for some `c'`, then the secondary
     /// item $i$ is assigned color `c'`; otherwise $i$ is implicitly assigned
-    /// a unique color, which does not match the color of the item in any other
+    /// a unique color that doesn't match the color of the item in any other
     /// option.
     ///
     /// Once all options have been specified, use [`Self::solve`] to visit all
@@ -202,7 +243,7 @@ pub(crate) mod private {
         /// This function panics if the node index is out of bounds.
         ///
         /// [instance node]: crate::dl::Node::Instance
-        fn option_of(&self, ix: InstIndex, result: &mut Vec<&'i I>);
+        fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>);
     }
 }
 
@@ -225,11 +266,12 @@ where
     S: Solver<'i, I, C>,
     I: Eq,
 {
-    /// Places the items in the next option of the solution into `result`.
+    /// Places the items in the next option of the solution and their
+    /// color assignments under that same option into `result`.
     ///
     /// Returns `false` and leaves the vector untouched if and only if
     /// all options have already been enumerated.
-    pub fn next(&mut self, result: &mut Vec<&'i I>) -> bool {
+    pub fn next(&mut self, result: &mut Vec<(&'i I, Option<C>)>) -> bool {
         if let Some(node_ix) = self.solver.pointer(self.level) {
             // Update the recursion depth level and populate `result`.
             self.level += 1;

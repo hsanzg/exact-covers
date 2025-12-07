@@ -64,7 +64,8 @@ fn main() {
             // Note that `Item` derives `Ord`, so item variants are ordered by
             // their discriminants: numbers come before slots.
             options.sort();
-            if let &[&Item::Number(i), &Item::Slot(j), &Item::Slot(k)] = &options[..] {
+            if let &[(&Item::Number(i), _), (&Item::Slot(j), _), (&Item::Slot(k), _)] = &options[..]
+            {
                 placement[j - 1] = i;
                 placement[k - 1] = i;
             } else {
