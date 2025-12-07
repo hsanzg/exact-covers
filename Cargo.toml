@@ -1,6 +1,6 @@
 [package]
 name = "exact-covers"
-version = "0.2.1"
+version = "0.3.0"
 description = "An implementation of Knuth's algorithm for solving the exact cover problem with colors"
 authors = ["Hugo Sanz González <hugo@hgsg.me>"]
 license = "MIT"
