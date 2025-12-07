@@ -17,6 +17,7 @@
 //! [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
 
 use exact_covers::{DlSolver, Solver};
+use std::ops::ControlFlow;
 
 /// A Langford pair can exist only when $n$ is congruent to 0 or 3 modulo 4.
 /// This is because the two entries of an odd number must either both go in
@@ -74,5 +75,6 @@ fn main() {
         println!("{:?}", placement);
         placement.reverse();
         println!("{:?}", placement);
+        ControlFlow::Continue(())
     });
 }

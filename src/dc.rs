@@ -1,5 +1,6 @@
 use crate::indices::InstIndex;
 use crate::Solution;
+use std::ops::ControlFlow;
 
 /// Visits all solutions to a given XCC problem by means of dancing cells.
 ///
@@ -25,7 +26,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver {
 
     fn solve<F>(self, visit: F)
     where
-        F: FnMut(Solution<'_, 'i, I, C, Self>),
+        F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>,
     {
         todo!()
     }

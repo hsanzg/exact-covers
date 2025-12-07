@@ -3,6 +3,7 @@ use crate::Solution;
 use std::iter;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::ops::ControlFlow;
 
 /// An item in an XCC problem.
 pub(crate) struct Item<'l, L> {
@@ -657,7 +658,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
 
     fn solve<F>(mut self, mut visit: F)
     where
-        F: FnMut(Solution<'_, 'i, I, C, Self>),
+        F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>,
     {
         // The heuristic function used in step C3 to choose an active item
         // for branching. Knuth found that selecting an item whose vertical
@@ -693,11 +694,15 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver<'i, I, C> {
                     //     given by the nodes in `self.pointers` and leave the
                     //     current recursion level.
                     if self.is_valid_solution() {
-                        visit(Solution {
+                        let control_flow = visit(Solution {
                             solver: &mut self,
                             level: 0,
                             _phantom: PhantomData,
                         });
+                        if control_flow.is_break() {
+                            // The user needs no more solutions.
+                            return;
+                        }
                     }
                     break;
                 }
@@ -891,6 +896,7 @@ mod tests {
     use crate::indices::ItemIndex;
     use crate::{DlSolver, Solver};
     use std::fmt::Debug;
+    use std::ops::ControlFlow;
 
     fn assert_eq_item<'i, I>(item: &Item<'i, I>, label: &I, left: ItemIndex, right: ItemIndex)
     where

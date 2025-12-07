@@ -20,6 +20,7 @@ use exact_covers::{DlSolver, Solver};
 use smallvec::SmallVec;
 use std::collections::HashSet;
 use std::iter;
+use std::ops::ControlFlow;
 
 /// A point in the cubic lattice.
 type Position = (i8, i8, i8);
@@ -195,6 +196,7 @@ fn main() {
         }
         println!("]");
         count += 1;
+        ControlFlow::Continue(())
     });
     println!("found {count} packings");
 }

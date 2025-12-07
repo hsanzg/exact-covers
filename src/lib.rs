@@ -75,10 +75,10 @@ mod dc;
 mod dl;
 mod indices;
 
-use std::marker::PhantomData;
-
 pub use dc::Solver as DcSolver;
 pub use dl::Solver as DlSolver;
+use std::marker::PhantomData;
+use std::ops::ControlFlow;
 
 /// Visits all [solutions] to an XCC problem with $N_1\ge0$ primary items and
 /// $N_2\ge0$ secondary items.
@@ -167,9 +167,13 @@ pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
         S: AsRef<[(I, Option<C>)]>;
 
     /// Calls a closure on each solution to the XCC problem.
+    ///
+    /// The solution process continues until the closure returns
+    /// [`ControlFlow::Break`] or all solutions have been visited,
+    /// whichever occurs first.
     fn solve<F>(self, visit: F)
     where
-        F: FnMut(Solution<'_, 'i, I, C, Self>);
+        F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>;
 }
 
 pub(crate) mod private {

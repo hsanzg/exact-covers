@@ -9,6 +9,7 @@
 /// edition of the book _Concrete Mathematics_ (Addison–Wesley, 1994) by R. Graham,
 /// D. E. Knuth and O. Patashnik.
 use exact_covers::{DlSolver, Solver};
+use std::ops::ControlFlow;
 
 /// The number $m$ of rows of the board, also known as _ranks_.
 const ROWS: u8 = 8;
@@ -41,6 +42,9 @@ fn main() {
 
     // Count the number of solutions, taking symmetry into account.
     let mut count = 0;
-    solver.solve(|_| count += 2);
+    solver.solve(|_| {
+        count += 2;
+        ControlFlow::Continue(())
+    });
     assert_eq!(count, 12_988_816);
 }
