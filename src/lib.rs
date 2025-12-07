@@ -101,12 +101,12 @@ use std::ops::ControlFlow;
 /// Suppose we want to cover the primary items $a,b,c,d,e,f,g$ using some of
 /// the following options:
 /// \\[
-/// `c\\;e';\quad`a\\;d\\;g';\quad`b\\;c\\;f';\quad`a\\;d\\;f';\quad`b\\;g';\quad`d\\;e\\;g'.
+/// \`c\\;e';\quad\`a\\;d\\;g';\quad\`b\\;c\\;f';\quad\`a\\;d\\;f';\quad\`b\\;g';\quad\`d\\;e\\;g'.
 /// \\]
 /// (D. E. Knuth posed this toy problem at the beginning of Section 7.2.2.1
 /// in [_The Art of Computer Programming_ **4B** (2022)][taocp4b], Part 2, page 66.)
 /// The following program uses an XC solver based on the dancing links method
-/// to find the unique solution $'a\\;d\\;f';\\;'b\\;g';\\;'c\\;e'$:
+/// to find the unique solution $\`a\\;d\\;f';\\;\`b\\;g';\\;\`c\\;e'$:
 ///
 /// ```
 /// use std::ops::ControlFlow;
@@ -144,14 +144,15 @@ use std::ops::ControlFlow;
 /// Here's a slightly more interesting challenge: Given primary items $a,b,c$
 /// and secondary items $p,q$, find all subsets of options
 /// \\[
-/// `a\\;c\\;p\\;q:0'\quad`b\\;c\\;q:2'\quad`a\\;p'\quad`b\\;p:1'
+/// \`a\\;c\\;p\\;q{:}0';\quad\`b\\;c\\;q{:}2';\quad\`a\\;p';\quad\`b\\;p{:}1';\quad\`q{:}2'
 /// \\]
 /// that (i) cover every primary item exactly once, and (ii) assign at most one
-/// color to every secondary item. (The notation `A:X` means that color `X` is
-/// assigned to item `A`; when a secondary item is not followed by a colon, it
+/// color to every secondary item. (The notation $i{:}x$ means that color $x$ is
+/// assigned to item $i$; when a secondary item is not followed by a colon, it
 /// is implicitly assigned a unique color which is incompatible with any other.)
-/// The following program uses an XCC solver to find the unique solution
-/// consisting of options $`a\\;p'$ and $`b\\;c\\;q:2'$:
+/// The program below uses an XCC solver to obtain the solution $\`a\\;p';\\;\`b\\;c\\;q{:}2'$.
+/// Observe that the solver discards the only other solution $\`a\\;p';\\;\`b\\;c\\;q{:}2';\\;\`q{:}2'$,
+/// because it contains a purely secondary option.
 ///
 /// ```
 /// use std::ops::ControlFlow;
@@ -164,8 +165,10 @@ use std::ops::ControlFlow;
 /// solver.add_option([     'b', 'c'], [                ('q', Some(2))]);
 /// solver.add_option(['a'          ], [('p', None)                   ]);
 /// solver.add_option([     'b',    ], [('p', Some(1))                ]);
+/// solver.add_option([             ], [                ('q', Some(2))]);
 ///
 /// let mut option = Vec::new();
+/// let mut num_sols = 0;
 /// solver.solve(|mut solution| {
 ///     // Notice that `color = None` if and only if `item` is primary
 ///     // or was not explicitly assigned a color by `option`.
@@ -173,8 +176,11 @@ use std::ops::ControlFlow;
 ///     assert_eq!(option, [(&'a', None), (&'p', None)]);
 ///     assert!(solution.next(&mut option));
 ///     assert_eq!(option, [(&'b', None), (&'c', None), (&'q', Some(2))]);
+///     assert!(!solution.next(&mut option));
+///     num_sols += 1;
 ///     ControlFlow::Continue(())
 /// });
+/// assert_eq!(num_sols, 1);
 /// ```
 ///
 /// [solutions]: `Solution`
