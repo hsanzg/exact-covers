@@ -59,7 +59,7 @@
 //! - [`polycube_packing.rs`] computes the number of ways to arrange 25 [Y pentacubes]
 //!   in a $5\times5\times5$ cuboid.
 //! - [`domino_chessboard.rs`] finds all ways to pack 32 dominoes into a chessboard.
-//! - [`graceful.rs`] finds all [graceful labelings] of an undirected graph.
+//! - [`graceful.rs`] generates all [graceful labelings] of a given graph.
 //!
 //! [dl]: https://arxiv.org/pdf/cs/0011047.pdf
 //! [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
