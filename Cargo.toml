@@ -10,7 +10,7 @@ repository = "https://github.com/hsanzg/exact-covers"
 keywords = ["exact-cover", "color-constraints", "dancing-cells", "combinatorial-search"]
 categories = ["algorithms", "data-structures", "mathematics"]
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,4 +29,4 @@ name = "polycube_packing"
 doc-scrape-examples = true
 
 [dev-dependencies]
-smallvec = "2.0.0-alpha.6" # for polycube_packing example
+smallvec = "2.0.0-alpha.12" # for polycube_packing example
