@@ -1,13 +1,13 @@
-/// This program determines in how many ways can 32 dominoes fill an $8\times8$
-/// chessboard. We set up an exact cover problem with one item for each of the
-/// $8\times8=64$ cells, and one option for each of the $2\times8\times7=112$
-/// placements of a domino.
-///
-/// P. W. Kasteleyn obtained a closed formula for the number of domino coverings
-/// of an $m\times n$ rectangle \[_Physica_ **27** (1961), pp. 1209–1225].
-/// Interested readers can learn more by working out exercise 7.51 in the second
-/// edition of the book _Concrete Mathematics_ (Addison–Wesley, 1994) by R. Graham,
-/// D. E. Knuth and O. Patashnik.
+//! This program determines in how many ways can 32 dominoes fill an $8\times8$
+//! chessboard. We set up an exact cover problem with one item for each of the
+//! $8\times8=64$ cells, and one option for each of the $2\times8\times7=112$
+//! placements of a domino.
+//!
+//! P. W. Kasteleyn obtained a closed formula for the number of domino coverings
+//! of an $m\times n$ rectangle \[_Physica_ **27** (1961), pp. 1209–1225].
+//! Interested readers can learn more by working out exercise 7.51 in the second
+//! edition of the book _Concrete Mathematics_ (Addison–Wesley, 1994) by R. Graham,
+//! D. E. Knuth and O. Patashnik.
 use exact_covers::{DlSolver, Solver};
 use std::ops::ControlFlow;
 
