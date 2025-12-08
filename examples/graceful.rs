@@ -1,4 +1,6 @@
 //! This program attempts to find a graceful labeling of an undirected graph.
+// todo: define "graceful labeling", and mention where this XCC formulation
+//       comes from.
 
 use exact_covers::{DlSolver, Solver};
 use std::collections::HashMap;
@@ -6,6 +8,8 @@ use std::fmt::Debug;
 use std::io::BufRead;
 use std::ops::ControlFlow;
 use std::str::FromStr;
+
+// todo: place `Graph` and all its related items after the main program.
 
 type Name = String;
 type Edge = (usize, usize, Name);
@@ -18,7 +22,7 @@ struct Graph {
 }
 
 impl Graph {
-    /// Reads a graph in [Trivial Graph Format][tgf].
+    /// Reads a graph in the [Trivial Graph Format][tgf].
     ///
     /// [tgf]: https://en.wikipedia.org/wiki/Trivial_Graph_Format
     pub fn read<R: BufRead>(reader: R) -> Self {
@@ -74,13 +78,15 @@ impl FromStr for Graph {
 
 type VertexLabeling = Vec<usize>;
 
-fn graceful(graph: &Graph) -> Option<VertexLabeling> {
+fn graceful(graph: &Graph, mut visit: impl FnMut(&VertexLabeling) -> ControlFlow<()>) {
+    // todo: document that this formulation comes from exercise 7.2.2.3-69
+    //       of TAOCP.
     #[derive(PartialEq, Eq, Clone, Copy, Debug)]
     enum Item {
-        // Primary items.
+        // Primary.
         EdgeLabel(usize),
         Edge(usize, usize),
-        // Secondary items.
+        // Secondary.
         Vertex(usize),
         Holder(usize),
     }
@@ -95,7 +101,6 @@ fn graceful(graph: &Graph) -> Option<VertexLabeling> {
     let secondary = vertices.chain(holders).collect::<Vec<_>>();
     let mut solver = DlSolver::new(&primary, &secondary);
 
-    let mut opt_count = 0;
     for d in 1..=m {
         let label = Item::EdgeLabel(d);
         for (u, v, _) in &graph.edges {
@@ -107,22 +112,20 @@ fn graceful(graph: &Graph) -> Option<VertexLabeling> {
                     // Assign label $d$ to edge $u-v$.
                     [label, edge],
                     [
-                        // Assign labels $j$ and $k$ to the endpoints $u$ and
-                        // $v$, respectively.
+                        // Assign labels $j$ and $k$, whose sum is $d$,
+                        // to the endpoints $u$ and $v$, respectively.
                         (i_u, Some(j)),
                         (i_v, Some(k)),
                         (Item::Holder(j), Some(*u)),
                         (Item::Holder(k), Some(*v)),
                     ],
                 );
-                opt_count += 1;
             }
         }
     }
-    assert_eq!(opt_count, m * (m + 1) * m / 2);
+    // todo: break symmetry.
 
     let mut labeling = vec![0; n];
-    let mut found_sol = false;
     solver.solve(|mut sol| {
         let mut option = Vec::new();
         while sol.next(&mut option) {
@@ -131,15 +134,17 @@ fn graceful(graph: &Graph) -> Option<VertexLabeling> {
                 labeling[v] = k;
             }
         }
-        found_sol = true;
-        ControlFlow::Break(())
+        visit(&labeling)
     });
-    found_sol.then_some(labeling)
 }
 
 fn main() {
-    let mut graph = Graph::read(std::io::stdin().lock());
-    graceful(&mut graph);
+    let graph = Graph::read(std::io::stdin().lock());
+    graceful(&graph, |labeling| {
+        // todo: improve output formatting.
+        println!("{labeling:?}");
+        ControlFlow::Break(())
+    });
 }
 
 #[cfg(test)]
@@ -175,7 +180,7 @@ mod tests {
     #[test]
     fn k3_2() {
         // The complete bipartite graph $K_{2,3}$ is graceful.
-        let mut graph = "0 u_0
+        let graph: Graph = "0 u_0
 1 u_1
 2 v_0
 3 v_1
@@ -189,22 +194,28 @@ mod tests {
 1 4"
         .parse()
         .unwrap();
-        let labeling = graceful(&mut graph).unwrap();
-
-        // Check that the edge labels are distinct.
-        let mut edge_labels = HashSet::new();
-        for &(u, v, _) in &graph.edges {
-            let (j, k) = (labeling[u], labeling[v]);
-            let label = j.abs_diff(k);
-            assert!(edge_labels.insert(label), "duplicate edge label");
-        }
-
-        // Check that the vertex labels are distinct and $\le m$.
         let (n, m) = (graph.num_vertices(), graph.num_edges());
-        let uniq_vertex_labels = labeling
-            .into_iter()
-            .inspect(|&l| assert!(l <= m))
-            .collect::<HashSet<_>>();
-        assert_eq!(uniq_vertex_labels.len(), n);
+
+        let mut found = false;
+        graceful(&graph, |labeling| {
+            found = true;
+
+            // Check that the edge labels are distinct.
+            let mut edge_labels = HashSet::new();
+            for &(u, v, _) in &graph.edges {
+                let (j, k) = (labeling[u], labeling[v]);
+                let label = j.abs_diff(k);
+                assert!(edge_labels.insert(label), "duplicate edge label");
+            }
+
+            // Check that the vertex labels are distinct and $\le m$.
+            let uniq_vertex_labels = labeling
+                .into_iter()
+                .inspect(|&&l| assert!(l <= m))
+                .collect::<HashSet<_>>();
+            assert_eq!(uniq_vertex_labels.len(), n);
+            ControlFlow::Break(())
+        });
+        assert!(found);
     }
 }
