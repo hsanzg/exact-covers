@@ -36,8 +36,8 @@ impl Polycube {
     /// If the number of cubies in this polycube exceeds this threshold,
     /// the buffer containing their positions is allocated on the heap.
     const INLINE_CAP: usize = 5; // In this way the array of positions takes 15 bytes,
-                                 // which is one less than the space required
-                                 // for a 64-bit pointer and a capacity field.
+    // which is one less than the space required
+    // for a 64-bit pointer and a capacity field.
 
     /// Creates a polycube with one or more cubies, without copying any data.
     ///
@@ -118,7 +118,7 @@ impl From<&[Position]> for Polycube {
     /// Creates a polycube with one or more cubies.
     fn from(positions: &[Position]) -> Self {
         assert!(!positions.is_empty(), "a polycube has one or more cubies");
-        Self(SmallVec::from_slice(positions))
+        Self(SmallVec::from(positions))
     }
 }
 
@@ -186,8 +186,8 @@ fn main() {
         print!("[");
         while solution.next(&mut polycube) {
             print!("[");
-            if let Some(((&last, _), elements)) = polycube.split_last() {
-                for (&cubie, _) in elements {
+            if let Some(((last, _), elements)) = polycube.split_last() {
+                for (cubie, _) in elements {
                     print!("[{},{},{}],", cubie.0, cubie.1, cubie.2);
                 }
                 print!("[{},{},{}]", last.0, last.1, last.2);
