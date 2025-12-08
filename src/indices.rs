@@ -88,7 +88,7 @@ impl InstIndex {
     /// `ix` must be positive.
     #[must_use]
     pub const unsafe fn new_unchecked(ix: usize) -> Self {
-        Self(NonZeroUsize::new_unchecked(ix))
+        Self(unsafe { NonZeroUsize::new_unchecked(ix) })
     }
 
     /// Returns the index value as a primitive type.

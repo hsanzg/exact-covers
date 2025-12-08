@@ -1,5 +1,5 @@
-use crate::indices::InstIndex;
 use crate::Solution;
+use crate::indices::InstIndex;
 use std::ops::ControlFlow;
 
 /// Visits all solutions to a given XCC problem by means of dancing cells.
@@ -12,11 +12,11 @@ use std::ops::ControlFlow;
 pub struct Solver;
 
 impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver {
-    fn new(primary: &'i [I], secondary: &'i [I]) -> Self {
+    fn new(_primary: &'i [I], _secondary: &'i [I]) -> Self {
         todo!()
     }
 
-    fn add_option<P, S>(&mut self, primary: P, secondary: S)
+    fn add_option<P, S>(&mut self, _primary: P, _secondary: S)
     where
         P: AsRef<[I]>,
         S: AsRef<[(I, Option<C>)]>,
@@ -24,7 +24,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver {
         todo!()
     }
 
-    fn solve<F>(self, visit: F)
+    fn solve<F>(self, _visit: F)
     where
         F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>,
     {
@@ -33,7 +33,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver {
 }
 
 impl<'i, I: Eq, C: Eq + Copy> crate::private::Solver<'i, I, C> for Solver {
-    fn pointer(&self, level: usize) -> Option<InstIndex> {
+    fn pointer(&self, _level: usize) -> Option<InstIndex> {
         todo!()
     }
 
@@ -41,7 +41,7 @@ impl<'i, I: Eq, C: Eq + Copy> crate::private::Solver<'i, I, C> for Solver {
         todo!()
     }
 
-    fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>) {
+    fn option_of(&self, _ix: InstIndex, _result: &mut Vec<(&'i I, Option<C>)>) {
         todo!()
     }
 }
