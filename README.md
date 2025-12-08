@@ -74,6 +74,7 @@ that apply these algorithms to a variety of problems:
 - [`polycube_packing.rs`] computes the number of ways to arrange 25 [Y pentacubes]
   in a $5\times5\times5$ cuboid.
 - [`domino_chessboard.rs`] finds all ways to pack 32 dominoes into a chessboard.
+- [`graceful.rs`] finds all [graceful labelings] of an undirected graph.
 
 [dl]: https://arxiv.org/pdf/cs/0011047.pdf
 [taocp4b]: https://www-cs-faculty.stanford.edu/~knuth/taocp.html#vol4
@@ -85,6 +86,8 @@ that apply these algorithms to a variety of problems:
 [`polycube_packing.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/polycube_packing.rs
 [Y pentacubes]: https://en.wikipedia.org/wiki/Polycube
 [`domino_chessboard.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/domino_chessboard.rs
+[`graceful.rs`]: https://github.com/hsanzg/exact-covers/blob/main/examples/graceful.rs
+[graceful labelings]: https://en.wikipedia.org/wiki/Graceful_labeling
 
 <!-- cargo-sync-readme end -->
 
