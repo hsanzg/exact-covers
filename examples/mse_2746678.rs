@@ -3,40 +3,47 @@ mod polycubes;
 
 use exact_covers::{DlSolver, Solution, Solver};
 use polycubes::{Polycube, Pos};
-use std::collections::HashSet;
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::ops::ControlFlow;
 use std::{array, iter};
 
-pub fn neighbors<const N: usize>(p: &Pos<N>) -> Vec<Pos<N>> {
-  let mut ns = Vec::with_capacity(3usize.pow(N as u32) - 1);
-  let mut d = [-1i8; N];
-  loop {
-    if d.iter().any(|&d| d != 0) {
-      ns.push(array::from_fn(|i| p[i] + d[i]));
-    }
-    // Advance to the next neighbor.
-    let mut j = 0;
-    while j < N && d[j] == 1 {
-      d[j] = -1;
-      j += 1;
-    }
-    if j == N {
-      break;
-    }
-    d[j] += 1;
-  }
-  ns
+fn cartesian_prod<T, I, J>(a: I, b: J) -> impl Iterator<Item = [T; 2]> + Clone
+where
+  T: Clone,
+  I: Iterator<Item = T> + Clone,
+  J: Iterator<Item = T> + Clone,
+{
+  a.flat_map(move |x| b.clone().map(move |y| [x.clone(), y]))
 }
 
-fn touching<const N: usize>(pc: &Polycube<N>) -> HashSet<Pos<N>> {
-  let mut b = HashSet::new();
+fn touches<const N: usize>(pc: &Polycube<N>) -> HashMap<Pos<N>, bool> {
+  let mut ts = HashMap::new();
   for c in pc.cubies() {
-    b.extend(neighbors(c));
+    // Iterate over the neighbors of $c$.
+    let mut d = [-1i8; N];
+    loop {
+      if d.iter().any(|&d| d != 0) {
+        let t = array::from_fn(|i| c[i] + d[i]);
+        let diag = d.iter().all(|&d| d != 0);
+        ts.entry(t).and_modify(|e| *e &= diag).or_insert(diag);
+      }
+      let mut j = 0;
+      while j < N && d[j] == 1 {
+        d[j] = -1;
+        j += 1;
+      }
+      if j == N {
+        break;
+      }
+      d[j] += 1;
+    }
   }
+  // Exclude the cells occupied by the tromino itself.
   for c in pc.cubies() {
-    b.remove(c);
+    ts.remove(c);
   }
-  b
+  ts
 }
 
 #[repr(u8)]
@@ -47,25 +54,27 @@ enum Color {
   Blue,
 }
 
-impl Color {
-  pub fn all() -> &'static [Self] {
-    &[Self::Orange, Self::Pink, Self::Blue]
-  }
+fn colors() -> [Color; 3] {
+  [Color::Orange, Color::Pink, Color::Blue]
+}
 
-  pub fn ansi_esc(self) -> &'static str {
-    match self {
-      Self::Orange => "\x1b[0;33m",
-      Self::Pink => "\x1b[0;31m",
-      Self::Blue => "\x1b[0;36m",
+impl From<Color> for char {
+  fn from(c: Color) -> Self {
+    match c {
+      Color::Orange => 'o',
+      Color::Pink => 'p',
+      Color::Blue => 'b',
     }
   }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Item {
-  Occupy(Pos<2>),       // primary.
-  Claim(Pos<2>, Color), // secondary.
-  Empty,                // secondary.
+  // Primary.
+  Occupy(Pos<2>),
+  // Secondary.
+  Claim(Pos<2>, Color),
+  Empty,
 }
 
 #[repr(u8)]
@@ -75,123 +84,140 @@ enum ClaimKind {
   Touching,
 }
 
+/// Should there be at most one pair of trominoes touching at $v$?
+const SINGLE_DIAG_ADJ: bool = true;
+
 pub fn main() {
   const M: u8 = 8;
   const N: u8 = 8;
 
-  let cells = (0..M as i8).flat_map(|y| (0..N as i8).map(move |x| [x, y]));
+  let cells = cartesian_prod(0..M as i8, 0..N as i8);
   let occup: Vec<_> = cells.clone().map(Item::Occupy).collect();
-  let touch = cells.flat_map(|p| Color::all().iter().map(move |&c| Item::Claim(p, c)));
+  let touch = cells
+    .clone()
+    .flat_map(|p| colors().map(move |c| Item::Claim(p, c)));
   let sec: Vec<_> = touch.chain(iter::once(Item::Empty)).collect();
 
   let bent = Polycube::from([[0, 0], [0, 1], [1, 0]]);
   let placements = bent.base_placements();
 
-  for vy in 1..=M.div_ceil(2) {
-    for vx in 1..=vy.min(N.div_ceil(2)) {
-      if M == N && vx == 1 && vy == 1 {
-        continue;
-      }
+  let vs = (1..=M.div_ceil(2) as i8)
+    .flat_map(|y| (1..=y.min(N.div_ceil(2) as i8)).map(move |x| [x, y]))
+    .skip(1); // $(1, 1)$.
 
-      let (vx, vy) = (vx.cast_signed(), vy.cast_signed());
-      // Break symmetry by forcing the diagonally-touching trominoes
-      // to go in the upper-right direction. This is equivalent to
-      // forcing the orientation of the piece occupying cell $(0,0)$
-      // to three of four positions. // todo: Is it?
-      // todo: Apply these only when $m=n$.
-      let allowed_diag = [[vx - 1, vy - 1], [vx, vy]]; // [[vx - 1, vy], [vx, vy - 1]];
+  for [vx, vy] in vs {
+    let mut solver = DlSolver::new(&occup, &sec);
+    for shape in &placements {
+      for [x0, y0] in cartesian_prod(0..M as i8 - 1, 0..N as i8 - 1) {
+        let pc = shape.transform(|[x, y]| [x0 + x, y0 + y]);
 
-      let mut solver = DlSolver::new(&occup, &sec);
-      let (mut occup, mut claims) = (Vec::new(), Vec::new());
-      for shape in &placements {
-        for y0 in 0..M as i8 - 1 {
-          for x0 in 0..N as i8 - 1 {
-            let pc = shape.transform(|[x, y]| [x + x0, y + y0]);
-
-            for &c in Color::all() {
-              occup.clear();
-              claims.clear();
-
-              occup.extend(pc.cubies().iter().copied().map(Item::Occupy));
-              assert_eq!(occup.len(), 3);
-
-              claims.extend(
-                pc.cubies()
-                  .iter()
-                  .copied()
-                  .map(|p| (Item::Claim(p, c), Some(ClaimKind::Taken))),
-              );
-              assert_eq!(claims.len(), 3);
-
-              claims.extend(
-                touching(&pc)
-                  .into_iter()
-                  .filter(|&[x, y]| 0 <= x && x < N as i8 && 0 <= y && y < M as i8)
-                  .filter(|p| !allowed_diag.contains(p))
-                  .map(|p| (Item::Claim(p, c), Some(ClaimKind::Touching))),
-              );
-              assert!(claims.len() <= 3 + 12);
-
-              solver.add_option(&occup, &claims);
-
-              // Break symmetry by forcing the color of the tromino
-              // occupying cell $0,0$.
-              if x0 == 0 && y0 == 0 {
-                break;
-              }
-            }
+        let mut ts = touches(&pc);
+        ts.retain(|&[x, y], _| 0 <= x && x < N as i8 && 0 <= y && y < M as i8);
+        for [dx, dy] in cartesian_prod(-1..=0, -1..=0) {
+          let c = [vx + dx, vy + dy];
+          if let Entry::Occupied(o) = ts.entry(c)
+            && *o.get()
+          {
+            o.remove();
           }
         }
-      }
 
-      // Add option to cover empty cells.
-      for y in 0..M as i8 {
-        for x in 0..N as i8 {
-          solver.add_option(&[Item::Occupy([x, y])], &[(Item::Empty, None)])
+        // To break symmetry, force the trominoes occupying cells
+        // $0,0$ and $0,2$ to have specific (distinct) colors.
+        let cs: &[_] = match (x0, y0) {
+          (0, 0) => &[Color::Orange],
+          (0, 1) | (0, 2) => &[Color::Blue],
+          _ => &colors(),
+        };
+
+        for &c in cs {
+          let occup: Vec<_> = pc.cubies().iter().copied().map(Item::Occupy).collect();
+
+          let taken = pc
+            .cubies()
+            .iter()
+            .copied()
+            .map(|p| (Item::Claim(p, c), Some(ClaimKind::Taken)));
+          let touch = ts
+            .keys()
+            .copied()
+            .map(|p| (Item::Claim(p, c), Some(ClaimKind::Touching)));
+          let claims: Vec<_> = taken.chain(touch).collect();
+
+          solver.add_option(&occup, &claims);
         }
       }
-
-      println!("solving for vertex {vx}, {vy}");
-      let mut opts = Vec::new();
-      let mut c = 0;
-      solver.solve(|mut sol| {
-        print_sol::<_, { M as usize }, { N as usize }>(&mut sol, &mut opts);
-        c += 1;
-        ControlFlow::Continue(())
-      });
-      println!("found {c} sols!");
     }
+
+    // Add options to cover the empty cell.
+    assert_eq!(M * N % 3, 1); // todo: generalize.
+    for c in cells.clone() {
+      solver.add_option(&[Item::Occupy(c)], &[(Item::Empty, None)]);
+    }
+
+    println!("solving for vertex ({vx}, {vy})");
+    let mut opts = Vec::new();
+    let mut c = 0;
+    solver.solve(|mut sol| {
+      let board = parse_board::<_, { M as usize }, { N as usize }>(&mut sol, &mut opts);
+
+      // At most two trominoes of the same color may touch diagonally,
+      // if `SINGLE_DIAG_ADJ` is true. Otherwise $v$ may be surrounded
+      // by up to two pairs of trominoes of the same color.
+      let (vx, vy) = (vx as usize, vy as usize);
+      if SINGLE_DIAG_ADJ
+        && board[vy - 1][vx - 1] == board[vy][vx]
+        && board[vy][vx - 1] == board[vy - 1][vx]
+      {
+        return ControlFlow::Continue(());
+      }
+
+      // There are the same number of trominoes of each color.
+      let exp_cubies = M * N / 3;
+      if !colors().into_iter().all(|q| {
+        board
+          .as_flattened()
+          .iter()
+          .filter(|&&c| c == Some(q))
+          .count()
+          == exp_cubies as usize
+      }) {
+        return ControlFlow::Continue(());
+      }
+
+      // We found a valid solution!
+      print_board(board);
+      c += 1;
+      ControlFlow::Continue(())
+    });
+    println!("found {c} sols!");
   }
 }
 
-fn print_sol<'i, S, const M: usize, const N: usize>(
+fn parse_board<'i, S, const M: usize, const N: usize>(
   sol: &mut Solution<'_, 'i, Item, ClaimKind, S>,
   mut opts: &mut Vec<(&'i Item, Option<ClaimKind>)>,
-) where
+) -> [[Option<Color>; N]; M]
+where
   S: Solver<'i, Item, ClaimKind>,
 {
-  let mut board: [[Color; N]; M] = array::repeat(array::repeat(Color::Orange));
+  let mut b = array::repeat(array::repeat(None));
   while sol.next(&mut opts) {
     for item in opts.iter() {
       if let (Item::Claim([x, y], c), Some(ClaimKind::Taken)) = item {
-        board[*y as usize][*x as usize] = *c;
+        b[*y as usize][*x as usize] = Some(*c);
       }
     }
   }
-  for row in board {
-    for c in row {
-      print!(
-        "{}",
-        match c {
-          Color::Orange => "o",
-          Color::Pink => "p",
-          Color::Blue => "b",
-        }
-      );
-      // print!("{}█", c.ansi_esc());
+  b
+}
+
+fn print_board<const M: usize, const N: usize>(b: [[Option<Color>; N]; M]) {
+  for r in b {
+    for c in r {
+      print!("{}", c.map_or(' ', char::from));
     }
     println!();
   }
   println!();
-  // println!("\x1b[0m");
 }
