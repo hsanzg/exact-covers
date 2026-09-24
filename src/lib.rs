@@ -195,104 +195,104 @@ use std::ops::ControlFlow;
 //       in Rust does not use type defaults (see https://github.com/rust-lang/rust/issues/36980#issuecomment-251726254,
 //       https://github.com/rust-lang/reference/issues/636 and https://internals.rust-lang.org/t/interaction-of-user-defined-and-integral-fallbacks-with-inference/2496).
 pub trait Solver<'i, I, C>: private::Solver<'i, I, C> {
-    /// Creates a solver for an XCC problem on the given primary and secondary
-    /// items.
-    ///
-    /// To specify the options to cover these items, use [`Self::add_option`].
-    fn new(primary: &'i [I], secondary: &'i [I]) -> Self;
+  /// Creates a solver for an XCC problem on the given primary and secondary
+  /// items.
+  ///
+  /// To specify the options to cover these items, use [`Self::add_option`].
+  fn new(primary: &'i [I], secondary: &'i [I]) -> Self;
 
-    /// Appends an option to the XCC problem.
-    ///
-    /// The meaning of a pair $(i,c)$ in the list of secondary items depends on
-    /// the value of $c$: If $c$ is `Some(c')` for some `c'`, then the secondary
-    /// item $i$ is assigned color `c'`; otherwise $i$ is implicitly assigned
-    /// a unique color that doesn't match the color of the item in any other
-    /// option.
-    ///
-    /// Once all options have been specified, use [`Self::solve`] to visit all
-    /// solutions to the problem.
-    fn add_option<P, S>(&mut self, primary: P, secondary: S)
-    where
-        P: AsRef<[I]>,
-        S: AsRef<[(I, Option<C>)]>;
+  /// Appends an option to the XCC problem.
+  ///
+  /// The meaning of a pair $(i,c)$ in the list of secondary items depends on
+  /// the value of $c$: If $c$ is `Some(c')` for some `c'`, then the secondary
+  /// item $i$ is assigned color `c'`; otherwise $i$ is implicitly assigned
+  /// a unique color that doesn't match the color of the item in any other
+  /// option.
+  ///
+  /// Once all options have been specified, use [`Self::solve`] to visit all
+  /// solutions to the problem.
+  fn add_option<P, S>(&mut self, primary: P, secondary: S)
+  where
+    P: AsRef<[I]>,
+    S: AsRef<[(I, Option<C>)]>;
 
-    /// Calls a closure on each solution to the XCC problem.
-    ///
-    /// The solution process continues until the closure returns
-    /// [`ControlFlow::Break`] or all solutions have been visited,
-    /// whichever occurs first.
-    fn solve<F>(self, visit: F)
-    where
-        F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>;
+  /// Calls a closure on each solution to the XCC problem.
+  ///
+  /// The solution process continues until the closure returns
+  /// [`ControlFlow::Break`] or all solutions have been visited,
+  /// whichever occurs first.
+  fn solve<F>(self, visit: F)
+  where
+    F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>;
 }
 
 pub(crate) mod private {
-    use crate::indices::InstIndex;
+  use crate::indices::InstIndex;
 
-    pub trait Solver<'i, I, C> {
-        /// Returns the index of the [instance] in the option selected for
-        /// covering the first item covered at the given level of backtracking;
-        /// or [`None`], if the search tree is less than `level` levels deep.
-        ///
-        /// [instance]: crate::dl::Instance
-        fn pointer(&self, level: usize) -> Option<InstIndex>;
+  pub trait Solver<'i, I, C> {
+    /// Returns the index of the [instance] in the option selected for
+    /// covering the first item covered at the given level of backtracking;
+    /// or [`None`], if the search tree is less than `level` levels deep.
+    ///
+    /// [instance]: crate::dl::Instance
+    fn pointer(&self, level: usize) -> Option<InstIndex>;
 
-        /// Returns the current level of the search.
-        fn level(&self) -> usize;
+    /// Returns the current level of the search.
+    fn level(&self) -> usize;
 
-        /// Constructs the option associated with a given [instance node] $x$,
-        /// starting with the item represented by $x$ and proceeding cyclically
-        /// from left to right.
-        ///
-        /// The resulting sequence of items replaces the previous contents
-        /// of `result`.
-        ///
-        /// # Panics
-        ///
-        /// This function panics if the node index is out of bounds.
-        ///
-        /// [instance node]: crate::dl::Node::Instance
-        fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>);
-    }
+    /// Constructs the option associated with a given [instance node] $x$,
+    /// starting with the item represented by $x$ and proceeding cyclically
+    /// from left to right.
+    ///
+    /// The resulting sequence of items replaces the previous contents
+    /// of `result`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the node index is out of bounds.
+    ///
+    /// [instance node]: crate::dl::Node::Instance
+    fn option_of(&self, ix: InstIndex, result: &mut Vec<(&'i I, Option<C>)>);
+  }
 }
 
 /// An iterator over the options of a solution to an XCC problem.
 pub struct Solution<'s, 'i: 's, I, C, S> {
-    /// The solver that found the colored covering.
-    solver: &'s mut S,
-    /// The index of an element in `solver`'s [list of node pointers], which
-    /// corresponds to an ancestor of the present solution in the search tree.
-    /// The [`Self::next`] function uses this information to reconstruct the
-    /// option selected by the search algorithm at that level of recursion.
-    ///
-    /// [list of node pointers]: private::Solver::pointer
-    level: usize,
-    _phantom: PhantomData<(&'i I, C)>,
+  /// The solver that found the colored covering.
+  solver: &'s mut S,
+  /// The index of an element in `solver`'s [list of node pointers], which
+  /// corresponds to an ancestor of the present solution in the search tree.
+  /// The [`Self::next`] function uses this information to reconstruct the
+  /// option selected by the search algorithm at that level of recursion.
+  ///
+  /// [list of node pointers]: private::Solver::pointer
+  level: usize,
+  _phantom: PhantomData<(&'i I, C)>,
 }
 
 impl<'s, 'i, S, I, C> Solution<'s, 'i, I, C, S>
 where
-    S: Solver<'i, I, C>,
-    I: Eq,
+  S: Solver<'i, I, C>,
+  I: Eq,
 {
-    /// Places the items in the next option of the solution and their
-    /// color assignments under that same option into `result`.
-    ///
-    /// Returns `false` and leaves the vector untouched if and only if
-    /// all options have already been enumerated.
-    pub fn next(&mut self, result: &mut Vec<(&'i I, Option<C>)>) -> bool {
-        if let Some(node_ix) = self.solver.pointer(self.level) {
-            // Update the recursion depth level and populate `result`.
-            self.level += 1;
-            self.solver.option_of(node_ix, result);
-            true
-        } else {
-            false
-        }
+  /// Places the items in the next option of the solution and their
+  /// color assignments under that same option into `result`.
+  ///
+  /// Returns `false` and leaves the vector untouched if and only if
+  /// all options have already been enumerated.
+  pub fn next(&mut self, result: &mut Vec<(&'i I, Option<C>)>) -> bool {
+    if let Some(node_ix) = self.solver.pointer(self.level) {
+      // Update the recursion depth level and populate `result`.
+      self.level += 1;
+      self.solver.option_of(node_ix, result);
+      true
+    } else {
+      false
     }
+  }
 
-    /// Returns the number of options in the solution.
-    pub fn option_count(&self) -> usize {
-        self.solver.level()
-    }
+  /// Returns the number of options in the solution.
+  pub fn option_count(&self) -> usize {
+    self.solver.level()
+  }
 }

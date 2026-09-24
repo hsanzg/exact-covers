@@ -12,36 +12,36 @@ use std::ops::ControlFlow;
 pub struct Solver;
 
 impl<'i, I: Eq, C: Eq + Copy> crate::Solver<'i, I, C> for Solver {
-    fn new(_primary: &'i [I], _secondary: &'i [I]) -> Self {
-        todo!()
-    }
+  fn new(_primary: &'i [I], _secondary: &'i [I]) -> Self {
+    todo!()
+  }
 
-    fn add_option<P, S>(&mut self, _primary: P, _secondary: S)
-    where
-        P: AsRef<[I]>,
-        S: AsRef<[(I, Option<C>)]>,
-    {
-        todo!()
-    }
+  fn add_option<P, S>(&mut self, _primary: P, _secondary: S)
+  where
+    P: AsRef<[I]>,
+    S: AsRef<[(I, Option<C>)]>,
+  {
+    todo!()
+  }
 
-    fn solve<F>(self, _visit: F)
-    where
-        F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>,
-    {
-        todo!()
-    }
+  fn solve<F>(self, _visit: F)
+  where
+    F: FnMut(Solution<'_, 'i, I, C, Self>) -> ControlFlow<()>,
+  {
+    todo!()
+  }
 }
 
 impl<'i, I: Eq, C: Eq + Copy> crate::private::Solver<'i, I, C> for Solver {
-    fn pointer(&self, _level: usize) -> Option<InstIndex> {
-        todo!()
-    }
+  fn pointer(&self, _level: usize) -> Option<InstIndex> {
+    todo!()
+  }
 
-    fn level(&self) -> usize {
-        todo!()
-    }
+  fn level(&self) -> usize {
+    todo!()
+  }
 
-    fn option_of(&self, _ix: InstIndex, _result: &mut Vec<(&'i I, Option<C>)>) {
-        todo!()
-    }
+  fn option_of(&self, _ix: InstIndex, _result: &mut Vec<(&'i I, Option<C>)>) {
+    todo!()
+  }
 }

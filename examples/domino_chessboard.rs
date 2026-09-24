@@ -18,33 +18,33 @@ const ROWS: u8 = 8;
 const COLUMNS: u8 = 8;
 
 fn main() {
-    // Generate all cells of an $m\times n$ board.
-    let cells: Vec<_> = (0..ROWS)
-        .flat_map(|x| (0..COLUMNS).map(move |y| (x, y)))
-        .collect();
+  // Generate all cells of an $m\times n$ board.
+  let cells: Vec<_> = (0..ROWS)
+    .flat_map(|x| (0..COLUMNS).map(move |y| (x, y)))
+    .collect();
 
-    let mut solver: DlSolver<_, ()> = DlSolver::new(&cells, &[]);
+  let mut solver: DlSolver<_, ()> = DlSolver::new(&cells, &[]);
 
-    // There's an option for each pair of adjacent cells. We start with the
-    // $m(n-1)$ horizontal placements,
-    for x0 in 0..ROWS {
-        for y0 in 0..COLUMNS - 1 {
-            solver.add_option([(x0, y0), (x0, y0 + 1)], []);
-        }
+  // There's an option for each pair of adjacent cells. We start with the
+  // $m(n-1)$ horizontal placements,
+  for x0 in 0..ROWS {
+    for y0 in 0..COLUMNS - 1 {
+      solver.add_option([(x0, y0), (x0, y0 + 1)], []);
     }
-    // and continue with the $n(m-1)$ vertical ones. To reduce symmetry, insist
-    // that the domino occupying the upper left cell is laid out horizontally.
-    for y0 in 0..COLUMNS {
-        for x0 in (y0 == 0) as u8..ROWS - 1 {
-            solver.add_option([(x0, y0), (x0 + 1, y0)], []);
-        }
+  }
+  // and continue with the $n(m-1)$ vertical ones. To reduce symmetry, insist
+  // that the domino occupying the upper left cell is laid out horizontally.
+  for y0 in 0..COLUMNS {
+    for x0 in (y0 == 0) as u8..ROWS - 1 {
+      solver.add_option([(x0, y0), (x0 + 1, y0)], []);
     }
+  }
 
-    // Count the number of solutions, taking symmetry into account.
-    let mut count = 0;
-    solver.solve(|_| {
-        count += 2;
-        ControlFlow::Continue(())
-    });
-    assert_eq!(count, 12_988_816);
+  // Count the number of solutions, taking symmetry into account.
+  let mut count = 0;
+  solver.solve(|_| {
+    count += 2;
+    ControlFlow::Continue(())
+  });
+  assert_eq!(count, 12_988_816);
 }

@@ -32,50 +32,54 @@ const N: usize = 15;
 
 #[derive(Eq, PartialEq, Copy, Clone, Ord, PartialOrd)]
 enum Item {
-    Number(usize),
-    Slot(usize),
+  Number(usize),
+  Slot(usize),
 }
 
 fn main() {
-    let numbers = (1..=N).map(Item::Number);
-    let slots = (1..=2 * N).map(Item::Slot);
-    let items: Vec<_> = numbers.chain(slots).collect();
+  let numbers = (1..=N).map(Item::Number);
+  let slots = (1..=2 * N).map(Item::Slot);
+  let items: Vec<_> = numbers.chain(slots).collect();
 
-    let mut solver: DlSolver<Item, ()> = DlSolver::new(&items, &[]);
-    for i in 1..=N {
-        // Optimization: half of the Langford pairs for a given value of $n$
-        // are the reverses of the others. Reduce the search space by placing
-        // the first 1 in position $1\le s_j<n$.
-        let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
-        for j in first_slot_range {
-            let k = i + j + 1;
-            let items = [Item::Number(i), Item::Slot(j), Item::Slot(k)];
-            solver.add_option(items, []);
-        }
+  let mut solver: DlSolver<Item, ()> = DlSolver::new(&items, &[]);
+  for i in 1..=N {
+    // Optimization: half of the Langford pairs for a given value of $n$
+    // are the reverses of the others. Reduce the search space by placing
+    // the first 1 in position $1\le s_j<n$.
+    let first_slot_range = 1..if i == 1 { N } else { 2 * N - i };
+    for j in first_slot_range {
+      let k = i + j + 1;
+      let items = [Item::Number(i), Item::Slot(j), Item::Slot(k)];
+      solver.add_option(items, []);
     }
+  }
 
-    let mut options = Vec::new();
-    solver.solve(|mut solution| {
-        assert_eq!(solution.option_count(), N);
-        // Convert the set of options into the corresponding placement.
-        let mut placement = [0usize; 2 * N];
-        while solution.next(&mut options) {
-            // Sort the items in `options` so we can perform pattern matching.
-            // Note that `Item` derives `Ord`, so item variants are ordered by
-            // their discriminants: numbers come before slots.
-            options.sort();
-            if let &[(&Item::Number(i), _), (&Item::Slot(j), _), (&Item::Slot(k), _)] = &options[..]
-            {
-                placement[j - 1] = i;
-                placement[k - 1] = i;
-            } else {
-                unreachable!("ordered option should match (number, slot, slot) pattern");
-            }
-        }
-        // Print the found Langford sequence, and its reverse.
-        println!("{:?}", placement);
-        placement.reverse();
-        println!("{:?}", placement);
-        ControlFlow::Continue(())
-    });
+  let mut options = Vec::new();
+  solver.solve(|mut solution| {
+    assert_eq!(solution.option_count(), N);
+    // Convert the set of options into the corresponding placement.
+    let mut placement = [0usize; 2 * N];
+    while solution.next(&mut options) {
+      // Sort the items in `options` so we can perform pattern matching.
+      // Note that `Item` derives `Ord`, so item variants are ordered by
+      // their discriminants: numbers come before slots.
+      options.sort();
+      if let &[
+        (&Item::Number(i), _),
+        (&Item::Slot(j), _),
+        (&Item::Slot(k), _),
+      ] = &options[..]
+      {
+        placement[j - 1] = i;
+        placement[k - 1] = i;
+      } else {
+        unreachable!("ordered option should match (number, slot, slot) pattern");
+      }
+    }
+    // Print the found Langford sequence, and its reverse.
+    println!("{:?}", placement);
+    placement.reverse();
+    println!("{:?}", placement);
+    ControlFlow::Continue(())
+  });
 }
